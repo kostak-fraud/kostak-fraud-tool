@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:18.3-alpine3.23
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kostak}
+      POSTGRES_USER: ${POSTGRES_USER:-kostak}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kostak-local-only}
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    volumes:
+      - kostak-postgres-data:/var/lib/postgresql
+
+volumes:
+  kostak-postgres-data:

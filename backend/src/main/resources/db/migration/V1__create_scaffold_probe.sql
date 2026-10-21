@@ -1,0 +1,6 @@
+CREATE TABLE scaffold_probe (
+    id SMALLINT PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO scaffold_probe (id) VALUES (1);
