@@ -55,4 +55,4 @@
 ## 6. Sonraki aksiyon
 
 - İncelemeye hazır mı? Evet.
-- Worker'ın kısa rapor özeti: FND-001 scaffold'u backend, frontend, lokal PostgreSQL ve dokümantasyonla tamamlandı. Zorunlu backend/frontend/Compose kontrolleri ile lokal migration ve health smoke geçti. Main'e merge veya push yapılmadı; Executor mevcut branch commit'lerini ve korunmuş pre-existing docs değişikliklerini ayrı ayrı incelemelidir.
+- Worker'ın kısa rapor özeti: FND-001 scaffold'u backend, frontend, lokal PostgreSQL ve dokümantasyonla tamamlandı. Zorunlu backend/frontend/Compose kontrolleri ile lokal migration ve health smoke geçti. Feature branch remote'a push edildi; main'e merge edilmedi. Executor mevcut branch commit'lerini ve korunmuş pre-existing docs değişikliklerini ayrı ayrı incelemelidir.
