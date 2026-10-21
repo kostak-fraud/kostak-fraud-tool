@@ -112,6 +112,25 @@ pnpm test
 pnpm build
 ```
 
+## CI ve PR kalite kapısı
+
+GitHub Actions'taki `CI` workflow'u `main` hedefli her pull request'te ve `main` branch'ine yapılan her push'ta iki bağımsız kontrol çalıştırır:
+
+- `frontend-ci`: Node.js 24.20.0 ve pnpm 11.24.0 ile frozen lockfile kurulumu, lint, typecheck, test ve production build.
+- `backend-ci`: Temurin Java 25 ve Maven Wrapper ile `verify`; unit testleri, PostgreSQL Testcontainers integration testi, Flyway migration ve jOOQ sorgusunu kapsar.
+
+Workflow production secret'larına veya harici bir veritabanına ihtiyaç duymaz. Backend integration testleri GitHub-hosted Linux runner'ın Docker ortamında geçici PostgreSQL 18.3 container'ları açar.
+
+`main` korumasında required status check adları tam olarak `frontend-ci` ve `backend-ci` olmalıdır. Bir kontrol başarısız veya beklemedeyken PR merge edilmez; kontrolleri atlamak için path filtresi, `continue-on-error` veya koşullu job kullanılmaz.
+
+### CI troubleshooting
+
+- `frontend-ci` kurulumda kırılırsa `frontend/package.json` içindeki Node/pnpm sürümleri ile `frontend/pnpm-lock.yaml` dosyasının commit edildiğini ve `pnpm install --frozen-lockfile` komutunun lokal olarak geçtiğini doğrulayın.
+- Lint, typecheck, test veya build hatasında ilgili `pnpm` komutunu `frontend/` altında aynı sırayla çalıştırın; workflow hata kodunu maskelemez.
+- `backend-ci` Testcontainers/Docker hatası verirse job logunda Docker daemon erişimini ve `postgres:18.3-alpine3.23` image indirmesini kontrol edin. CI için ayrı PostgreSQL service veya production credential eklemeyin.
+- Maven hatasını lokal olarak yeniden üretmek için Docker çalışırken `backend/` altında Windows'ta `.\mvnw.cmd -B verify`, Linux/macOS'ta `./mvnw -B verify` kullanın.
+- Beklenen required check görünmüyorsa workflow'un PR tarafında en az bir kez koştuğunu ve ruleset'teki check adlarının `frontend-ci` / `backend-ci` ile birebir eşleştiğini kontrol edin.
+
 ### Ortamı durdurma
 
 ```powershell
