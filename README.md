@@ -36,3 +36,94 @@
 - **Şirket gizliliği:** Kuruma ait ekran görüntüsü, gerçek müşteri/işlem verisi, kurum içi belgeler ve tescilli kural tanımları kullanılmaz. Tüm örnekler sentetiktir.
 
 > **Ajanlar için:** Yalnızca bu README'i değil, [`AGENTS.md`](AGENTS.md) dosyasını ve ilgili ticket'ın bağlandığı tekil gereksinim belgelerini okuyun. Chat geçmişi, kod üretmek için gerekmemelidir.
+
+## Lokal geliştirme
+
+Bu scaffold yalnız sentetik lokal değerler kullanır. Production, CI, deployment veya Supabase bağlantısının hazır olduğunu varsaymaz.
+
+### Önkoşullar
+
+- Eclipse Temurin veya uyumlu bir **Java 25** JDK
+- **Node.js 24.20.0** ve Corepack
+- `frontend/package.json` içinde sabitlenen **pnpm 11.24.0**
+- Docker Engine ve Docker Compose
+- Maven kurulumu gerekmez; `backend/mvnw` sabitlenmiş **Maven 3.9.12** sürümünü indirir.
+
+### Environment ve PostgreSQL
+
+PowerShell örneği:
+
+```powershell
+Copy-Item .env.example .env
+docker compose config
+docker compose up -d postgres
+docker compose ps
+```
+
+PostgreSQL satırı `healthy` olana kadar bekleyin. `.env` yalnız lokal sentetik credential içerir ve Git tarafından izlenmez.
+
+Backend'i çalıştırmadan önce aynı değerleri terminale yükleyin:
+
+```powershell
+Get-Content .env | ForEach-Object {
+  if ($_ -match '^[^#].*=') {
+    $name, $value = $_ -split '=', 2
+    Set-Item -Path "Env:$name" -Value $value
+  }
+}
+```
+
+### Backend
+
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
+```
+
+Uygulama başladıktan sonra:
+
+- Health: http://localhost:8080/actuator/health
+- Readiness: http://localhost:8080/actuator/health/readiness
+
+Backend doğrulaması (Testcontainers için Docker çalışıyor olmalı):
+
+```powershell
+cd backend
+.\mvnw.cmd -B verify
+```
+
+macOS/Linux üzerinde aynı komut `./mvnw -B verify` şeklindedir.
+
+### Frontend
+
+```powershell
+cd frontend
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Arayüz http://localhost:3000 adresinde açılır. Ayrı ayrı kalite kontrolleri:
+
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+### Ortamı durdurma
+
+```powershell
+docker compose down
+```
+
+Bu komut named volume'u silmez. Lokal veriyi silmek özellikle istenmiyorsa `docker compose down -v` kullanmayın.
+
+### Troubleshooting
+
+- **Port çakışması:** `.env` içindeki `POSTGRES_PORT` veya `SERVER_PORT` değerini boş bir porta alın. Frontend için `pnpm dev -- --port 3001` kullanılabilir; `SPRING_DATASOURCE_URL` PostgreSQL portuyla aynı kalmalıdır.
+- **PostgreSQL unhealthy:** `docker compose ps` ve `docker compose logs postgres` çıktısını kontrol edin. Daha önce başka credential ile oluşmuş volume varsa mevcut veriyi silmeden önce içeriğinin gerekip gerekmediğini doğrulayın.
+- **Java/Node/pnpm sürümü:** `java -version`, `node --version` ve `pnpm --version` çıktıları önkoşullarla eşleşmelidir. Corepack yanlış pnpm sürümü seçerse `corepack prepare pnpm@11.24.0 --activate` çalıştırın.
+- **Docker/Testcontainers erişimi:** Docker Desktop/Engine'in çalıştığını ve mevcut kullanıcının Docker daemon'a erişebildiğini doğrulayın. Kurumsal proxy kullanılıyorsa image ve Maven indirmeleri için proxy ayarları gerekebilir.
+- **DB credential veya bağlantı hatası:** `.env`, Compose container environment değerleri ve `SPRING_DATASOURCE_URL`/`SPRING_DATASOURCE_USERNAME`/`SPRING_DATASOURCE_PASSWORD` değerlerinin aynı database, kullanıcı ve porta işaret ettiğini doğrulayın.

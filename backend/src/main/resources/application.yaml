@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: kostak-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:55432/kostak}
+    username: ${SPRING_DATASOURCE_USERNAME:kostak}
+    password: ${SPRING_DATASOURCE_PASSWORD:kostak-local-only}
+  flyway:
+    enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
