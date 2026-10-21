@@ -2,7 +2,7 @@
 
 **Sürüm:** v0.3 — Gereksinimler + mimari + UX blueprint + bağımlılık sıralı backlog  
 **Tarih:** 2026-10-21  
-**Durum:** Ürün gereksinimleri ve ana stack seçildi; **mock veri sözlüğü ve UX blueprint önerisi** ile ayrıntılı backlog oluşturuldu. Bazı domain kararları ve gerçek channel field sözlüğü açık. FND-001 lokal uygulama scaffold'u mevcut; CI ve production deployment henüz yok.
+**Durum:** Ürün gereksinimleri ve ana stack seçildi; **mock veri sözlüğü ve UX blueprint önerisi** ile ayrıntılı backlog oluşturuldu. Bazı domain kararları ve gerçek channel field sözlüğü açık. FND-001 lokal uygulama scaffold'u ve FND-002 CI kalite kapısı mevcut; production deployment henüz yok.
 **Amaç:** UMDE ve bitirme projesi için çalışan akademik ürün; ileride farklı ödeme kuruluşlarına sunulabilecek güvenilir bir temel.
 
 ## Nereden başlamalı?
