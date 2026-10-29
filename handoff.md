@@ -66,9 +66,9 @@
 - `\.\mvnw.cmd -B -Dtest=SyntheticTransactionFactoryTest test`: **PASS**, 3 tests, 0 failures/errors; production and test sources compiled with Java release 25.
 - `\.\mvnw.cmd -B '-Dtest=SyntheticTransactionFactoryTest,TransactionFieldRegistryTest,RuntimePreflightTest,AppModeTest,KostakApplicationModeTest,SupabaseJwtDecoderTest,WorkerHeartbeatLifecycleTest' test`: **PASS**, 25 tests, 0 failures/errors after the final source change.
 - `\.\mvnw.cmd -B -Dtest=TransactionSchemaIntegrationTest#generatorPersistsTransactionsAndResumesSequenceAfterServiceRecreation+generatorPersistsSequenceMetadataAsJsonNumbers test`: **NOT COMPLETED**. Testcontainers waited on the local Docker named pipe for more than 60 seconds while the Docker daemon remained unresponsive; the command was interrupted. No pass is claimed.
-- `\.\mvnw.cmd -B verify`: **NOT RUN LOCALLY** because it requires the same unavailable Docker/Testcontainers path. The GitHub `backend-ci` job must provide the full Maven verify, PostgreSQL 17/18, Flyway, and regression evidence.
+- `\.\mvnw.cmd -B verify`: **NOT RUN LOCALLY** because it requires the same unavailable Docker/Testcontainers path. GitHub Actions run `40818353588` subsequently provided the full remote verification evidence.
 - `git diff --check`: **PASS**.
-- Frontend checks: not run because no frontend file changed. The pre-fix PR run `40817089932` had `frontend-ci` successful and `backend-ci` failed on the confirmed JSON defect.
+- Frontend checks were not run locally because no frontend file changed. In GitHub Actions run `40818353588`, `frontend-ci` passed.
 
 ## Safety and invariant review
 
@@ -81,6 +81,8 @@
 
 ## Remote CI and remaining risk
 
-- At handoff creation, the new commit had not yet been pushed; its GitHub Actions run was therefore pending creation.
-- The remaining blocker is local Docker daemon unavailability. Executor review must require a green `backend-ci` run covering the new PostgreSQL JSONB regression and full `verify` before merge.
-- No merge, auto-merge, migration, deployment, or production configuration action was performed.
+- GitHub Actions run `40818353588` for PR #13 completed successfully: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/40818353588.
+- `frontend-ci` and `backend-ci` both passed. The backend job completed Maven `verify`; `TransactionSchemaIntegrationTest` passed 7/7, including the existing restart-continuity test and the new JSONB sequence regression.
+- Remote verification also passed Flyway migration coverage, PostgreSQL 17.11 and 18.3 compatibility tests, and the backend runtime image build/inspection.
+- Local Docker daemon unavailability remains a local-environment limitation only; the local Testcontainers command was not completed and no local persistence-test pass is claimed. The successful remote `backend-ci` run supplies the required PostgreSQL/Testcontainers evidence for this handoff.
+- `release-ready` was skipped as expected. No merge, auto-merge, migration, deployment, or production configuration action was performed.
