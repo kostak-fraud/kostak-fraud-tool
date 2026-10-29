@@ -1,8 +1,8 @@
 # Fraud Monitoring Platform — Proje HQ Dokümantasyonu
 
 **Sürüm:** v0.3 — Gereksinimler + mimari + UX blueprint + bağımlılık sıralı backlog  
-**Tarih:** 2026-10-21  
-**Durum:** Ürün gereksinimleri ve ana stack seçildi; **mock veri sözlüğü ve UX blueprint önerisi** ile ayrıntılı backlog oluşturuldu. Bazı domain kararları ve gerçek channel field sözlüğü açık. FND-001 lokal uygulama scaffold'u ve FND-002 CI kalite kapısı mevcut; production deployment henüz yok.
+**Tarih:** 2026-10-29
+**Durum:** Ürün gereksinimleri ve ana stack seçildi; **mock veri sözlüğü ve UX blueprint önerisi** ile ayrıntılı backlog oluşturuldu. Bazı domain kararları ve gerçek channel field sözlüğü açık. FND-001 lokal uygulama scaffold'u ve FND-002 CI kalite kapısı mevcut; FND-003 deployment hazırlığı incelemede, harici ortamlara gerçek deployment henüz doğrulanmadı.
 **Amaç:** UMDE ve bitirme projesi için çalışan akademik ürün; ileride farklı ödeme kuruluşlarına sunulabilecek güvenilir bir temel.
 
 ## Nereden başlamalı?
@@ -21,6 +21,7 @@
 | Kural yürütme zaman/aggregate semantiği varsayımları | [`docs/ENGINE_SEMANTICS.md`](docs/ENGINE_SEMANTICS.md) |
 | RBAC izin matrisi / tenant erişimi | [`docs/RBAC.md`](docs/RBAC.md) |
 | Executor → Worker → Executor, CI/CD ve kalite kapıları | [`docs/DELIVERY.md`](docs/DELIVERY.md) |
+| Northflank, Vercel ve Supabase kurulum/deploy/smoke adımları | [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md) |
 | Onaylanmış kararlar, varsayımlar ve açık sorular | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | 1 haftalık rapor ve 2 aylık yürütme planı | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | Backlog indeks ve her ticket’ın tekil kabul kriterleri | [`backlog/INDEX.md`](backlog/INDEX.md) ve [`backlog/`](backlog/) |
@@ -39,7 +40,7 @@
 
 ## Lokal geliştirme
 
-Bu scaffold yalnız sentetik lokal değerler kullanır. Production, CI, deployment veya Supabase bağlantısının hazır olduğunu varsaymaz.
+Bu scaffold yalnız sentetik lokal değerler kullanır. CI kalite kapısı mevcuttur; production/demo deployment, Northflank/Vercel kaynakları veya Supabase bağlantısının hazır olduğunu varsaymaz.
 
 ### Önkoşullar
 
@@ -84,6 +85,7 @@ Uygulama başladıktan sonra:
 
 - Health: http://localhost:8080/actuator/health
 - Readiness: http://localhost:8080/actuator/health/readiness
+- Release info: http://localhost:8080/actuator/info
 
 Backend doğrulaması (Testcontainers için Docker çalışıyor olmalı):
 
@@ -130,6 +132,12 @@ Workflow production secret'larına veya harici bir veritabanına ihtiyaç duymaz
 - `backend-ci` Testcontainers/Docker hatası verirse job logunda Docker daemon erişimini ve `postgres:18.3-alpine3.23` image indirmesini kontrol edin. CI için ayrı PostgreSQL service veya production credential eklemeyin.
 - Maven hatasını lokal olarak yeniden üretmek için Docker çalışırken `backend/` altında Windows'ta `.\mvnw.cmd -B verify`, Linux/macOS'ta `./mvnw -B verify` kullanın.
 - Beklenen required check görünmüyorsa workflow'un PR tarafında en az bir kez koştuğunu ve ruleset'teki check adlarının `frontend-ci` / `backend-ci` ile birebir eşleştiğini kontrol edin.
+
+## Deployment hazırlığı ve mevcut durum
+
+Hedef topoloji Vercel web, iki ayrı Northflank servisi üzerinde API + Worker ve Supabase PostgreSQL/Auth'tur. Aynı immutable backend image'ı `APP_MODE=api`, `APP_MODE=worker` ve tek seferlik `APP_MODE=migrate` davranışlarını sunar. Ayrıntılı environment sözleşmesi, sağlayıcı alanları, release sırası ve smoke kanıtı [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md) içindedir.
+
+Bu repository'deki deployment dosyaları harici hesap, secret, URL veya canlı rollout kanıtı değildir. Vercel Preview/Production, Northflank servis/job ve Supabase staging/production projeleri Executor tarafından gerçekten kurulup smoke edilmeden FND-003 `DONE`, sistem `DEPLOYED` veya main sonrası otomatik release `VERIFIED` olarak raporlanmaz.
 
 ### Ortamı durdurma
 

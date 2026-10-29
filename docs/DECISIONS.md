@@ -1,6 +1,6 @@
 # Karar Kaydı ve Açık Sorular
 
-**Güncel:** 2026-10-21. `[ONAYLI]` Ömer tarafından teyit edilmiş iş kararıdır. `[ÖNERİ]` tartışma için, `[AÇIK]` çözülmeli. Bu sayfa kararın **kısa indeksidir**; kesin davranış için bağlı belgeye bakılır.
+**Güncel:** 2026-10-29. `[ONAYLI]` Ömer tarafından teyit edilmiş iş kararıdır. `[ÖNERİ]` tartışma için, `[AÇIK]` çözülmeli. Bu sayfa kararın **kısa indeksidir**; kesin davranış için bağlı belgeye bakılır.
 
 ## 1. Onaylı ürün kararları
 
@@ -33,7 +33,7 @@
 | T-03 | Supabase PostgreSQL/Auth; backend-controlled tenant+RBAC, JWT JWKS | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/ADR-0003-hosting-auth-and-delivery.md`](adr/ADR-0003-hosting-auth-and-delivery.md) |
 | T-04 | Modular monolith; aynı Java kod tabanından API+Worker process | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/ADR-0002-async-rule-evaluation.md`](adr/ADR-0002-async-rule-evaluation.md) |
 | T-05 | PostgreSQL transactional outbox/jobs + idempotent rule evaluation; başlangıçta Kafka/Redis yok | [`ARCHITECTURE.md`](ARCHITECTURE.md), [`adr/ADR-0002-async-rule-evaluation.md`](adr/ADR-0002-async-rule-evaluation.md) |
-| T-06 | Vercel web, Railway backend/worker, Supabase DB/Auth, GitHub Actions protected main | [`TECH_STACK.md`](TECH_STACK.md), [`adr/ADR-0003-hosting-auth-and-delivery.md`](adr/ADR-0003-hosting-auth-and-delivery.md) |
+| T-06 | Vercel web, Northflank backend/worker, Supabase DB/Auth, GitHub Actions protected main; Railway hedefi 2026-10-29'da supersede edildi | [`TECH_STACK.md`](TECH_STACK.md), [`adr/ADR-0003-hosting-auth-and-delivery.md`](adr/ADR-0003-hosting-auth-and-delivery.md) |
 
 ## 3. Öncelikli açık sorular (keşfi bloklamayan, tasarım/ticket öncesi çözülecek)
 

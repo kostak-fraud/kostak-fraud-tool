@@ -33,6 +33,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
+      - name: Validate release gate scripts
+        run: |
+          node --check scripts/release/run-northflank-workflow.mjs
+          node --test scripts/release/*.test.mjs
+          sh backend/worker-healthcheck.test.sh
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile

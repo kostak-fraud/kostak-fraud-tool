@@ -1,6 +1,6 @@
 # Geliştirme ve Teslim Playbook'u
 
-**Statü:** HQ tarafından kararlaştırılmış iş akışı. Araçların tam CLI/CI adımları ve branch naming pattern teknoloji/repo seçimi sonrasında kesinleşecek.
+**Statü:** HQ tarafından kararlaştırılmış iş akışı. FND-001 scaffold ve FND-002 GitHub Actions kalite kapısı mevcut; Vercel + Northflank + Supabase release hazırlığı FND-003 kapsamında incelemede, harici deployment henüz doğrulanmadı. Ayrıntılar: [`TECH_STACK.md`](TECH_STACK.md) ve [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md).
 
 ## 1. Roller ve sorumluluk
 
@@ -34,16 +34,26 @@
 
 ## 3. Kalite kapısı ve ortam yaklaşımı
 
-**Hedef:** `main`e merge edilen her commit deploy edilebilir ve uygulamaya yansımış olsun. Supabase/Vercel uygun adaylar; kesin teknoloji ve rollout kararı **henüz ADR ile alınmadı**.
+**Hedef:** `main`e merge edilen her commit deploy edilebilir ve uygulamaya yansımış olsun. **Karar:** Vercel web, Northflank Java API/Worker ve Supabase DB/Auth; gerekçe ve 2026-10-29 provider değişikliği ADR-0003'te kayıtlıdır.
 
-**CI asgari önerisi (stack seçilince komutlara bağlanacak):**
-- Lint/format ve typecheck; build.
-- Unit tests: skor, status geçişleri, rule condition/window semantics.
-- Integration tests: transaction pagination/filtering; authz/tenant isolation; atomic assignment/locking; page-scope bulk actions.
-- DB migration doğrulaması ve etkili smoke testler.
-- Secrets/env yönetimi; production veri ve mock data izolasyonu.
+**Mevcut zorunlu CI:**
+- `frontend-ci`: frozen install, lint, typecheck, test ve build.
+- `backend-ci`: Maven `verify`, unit + Testcontainers PostgreSQL integration + Flyway.
+- Required check adları değiştirilmez veya atlanmaz; PR workflow'larına production secret verilmez.
+- Domain geliştikçe skor/status/rule, pagination/filter, authz/tenant, lock ve bulk-action testleri aynı kapıya eklenir.
 
-**Deploy akışı önerisi:** Branch/PR preview → korumalı main CI → migration stratejisi → otomatik production deploy → kritik kullanıcı akışı smoke check. Deploy başarısızlığında ticket 'done' sayılamaz; recovery stratejisi tanımlanmalı.
+**Hedef release akışı:**
+
+1. Branch/PR kalite kontrolleri ve production verisinden izole Vercel Preview.
+2. Protected `main` merge ve iki required check'in başarılı olması.
+3. Commit SHA ile izlenebilir immutable backend image build.
+4. Aynı image ile explicit `APP_MODE=migrate` job; başarı beklenir, hata rollout'u durdurur.
+5. Aynı revision ile `APP_MODE=api` ve `APP_MODE=worker` Northflank rollout'u.
+6. API readiness + exact release SHA ve Worker liveness/heartbeat doğrulaması; ardından başarılı GitHub `release-ready` check.
+7. Vercel Git deployment için `release-ready` bekleyen Production Deployment Check ile domain assignment; özellik yoksa staged `--skip-domain` candidate → smoke → promote.
+8. HTTP/config/demo-safe smoke, schema version ve revision/SHA kanıtı.
+
+Provider auto-deploy mekanizmaları bu sıralamayı garanti etmiyorsa birbirinden bağımsız açılmaz; Northflank workflow/release akışı migration sonucunu bekler. Deploy başarısızlığında ticket `DONE` sayılamaz. Destructive migration rollback yerine backup/recovery + fix-forward, uygulama için önceki uyumlu image/Vercel deployment geri dönüşü kullanılır.
 
 ## 4. Ticket Definition of Ready (DoR)
 
@@ -59,6 +69,7 @@
 - Yeni özelliklerde erişim kontrolü, hata/empty/loading durumları, test verisi ve audit ele alındı.
 - `handoff.md` mevcut, Executor review tamam, blocker yok.
 - Main merge/deploy başarılı ve gerekli smoke doğrulama yapılmış.
+- Çalışan URL, provider logu, schema version ve commit/revision SHA gerçek kanıtla kaydedilmiş; yalnız repository config'i deployment kanıtı sayılmamış.
 
 ## 6. Koruyucu sınırlar
 
@@ -66,3 +77,10 @@
 - Mock/sentetik veri haricinde gerçek işlem, banka veya müşteri bilgisi kullanılmaz.
 - Bir ticket'ın konusu dışında refactor yapılmaz; minimum açıklayıcı dokümantasyon ve test yeterlidir.
 - Harici review yalnızca risk/karar gereği; her küçük diff için birden fazla onay şart değildir.
+
+## 7. Deployment kanıtı ve external blocker sınırı
+
+- Hosting provider ayarı, GitHub protection ya da gerçek secret konfigürasyonu ek izin istiyorsa **yapılmış gibi davranılmaz**; gereken dış aksiyon ve `UNVERIFIED` kanıt açıkça yazılır.
+- FND-003 repository hazırlığı external hesap olmadan `REVIEW` olabilir; Northflank/Vercel/Supabase rollout ve smoke tamamlanmadan `DONE`, `DEPLOYED` veya `VERIFIED` olamaz.
+- Supabase Auth environment sözleşmesinin bulunması JWT authentication/authorization'ın tamamlandığı anlamına gelmez; IAM-001 kapanana kadar bu açıkça kapsam dışıdır.
+- Northflank Developer Sandbox yalnız akademik demo ortamı olarak ele alınır; ticari production SLA/compliance sonucu çıkarılmaz.

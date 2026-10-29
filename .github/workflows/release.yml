@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full commit SHA from main to release; defaults to the selected main revision
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  release-ready:
+    name: release-ready
+    if: >-
+      vars.DEPLOYMENT_AUTOMATION_ENABLED == 'true' &&
+      (
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == 'main'
+        ) ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          github.ref == 'refs/heads/main'
+        )
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    env:
+      RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.release_sha || github.sha }}
+      RELEASE_BRANCH: main
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.20.0
+
+      - name: Verify release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::RELEASE_SHA must be a full lowercase commit SHA."
+            exit 1
+          fi
+
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "$checked_out_sha" != "$RELEASE_SHA" ]]; then
+            echo "::error::The checked-out commit does not match RELEASE_SHA."
+            exit 1
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if ! git show-ref --verify --quiet refs/remotes/origin/main; then
+              echo "::error::origin/main is unavailable for manual release verification."
+              exit 1
+            fi
+
+            if ! git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main; then
+              echo "::error::Manual releases must use a commit contained in origin/main."
+              exit 1
+            fi
+          fi
+
+      - name: Test release gate helpers
+        run: node --test scripts/release/*.test.mjs
+
+      - name: Run Northflank release workflow
+        shell: bash
+        env:
+          NORTHFLANK_API_TOKEN: ${{ secrets.NORTHFLANK_API_TOKEN }}
+          NORTHFLANK_PROJECT_ID: ${{ vars.NORTHFLANK_PROJECT_ID }}
+          NORTHFLANK_WORKFLOW_ID: ${{ vars.NORTHFLANK_WORKFLOW_ID }}
+        run: node scripts/release/run-northflank-workflow.mjs
+
+      - name: Smoke production API readiness and revision
+        env:
+          PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
+        run: node scripts/release/verify-api-release.mjs

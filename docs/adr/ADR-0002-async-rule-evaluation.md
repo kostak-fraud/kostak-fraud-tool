@@ -1,6 +1,6 @@
 # ADR-0002 — PostgreSQL Job/Outbox ile Asenkron Fraud Evaluation
 
-**Status:** Accepted by HQ, 2026-10-21.
+**Status:** Accepted by HQ, 2026-10-21; hosting provider wording amended 2026-10-29.
 
 ## Context
 
@@ -8,7 +8,7 @@ Mock transaction stream, gerçeğe yakın canlı skor ve güçlü zaman penceres
 
 ## Decision
 
-API ve Worker aynı Java codebase'i paylaşır, ayrı Railway process olarak çalışır. Transaction + processing job aynı PostgreSQL transaction'ına kaydedilir; worker `FOR UPDATE SKIP LOCKED`, lease, retry ve idempotency ile claim eder. Rule AST tipli ve validate edilir; pencere/aggregate hesapları tenant/channel/anchor odaklı jOOQ + indeksli PostgreSQL sorgularıdır. UI canlı değişiklik için SSE; reconnect/fallback polling.
+API ve Worker aynı Java codebase'i ve immutable image'ı paylaşır, ayrı Northflank servisleri olarak çalışır. Transaction + processing job aynı PostgreSQL transaction'ına kaydedilir; worker `FOR UPDATE SKIP LOCKED`, lease, retry ve idempotency ile claim eder. Rule AST tipli ve validate edilir; pencere/aggregate hesapları tenant/channel/anchor odaklı jOOQ + indeksli PostgreSQL sorgularıdır. UI canlı değişiklik için SSE; reconnect/fallback polling. FND-003 worker'ı yalnız sürekli runtime/heartbeat temelini kurar; fraud evaluation bu ADR'nin sonraki rule ticket'larında uygulanır.
 
 ## Alternatives
 

@@ -1,6 +1,6 @@
 # Sistem Mimarisi — Uygulama Tasarımı
 
-**Statü:** [HQ KARARI] Başlangıç mimarisi; repository scaffold ve integration spike ile doğrulanacak.  
+**Statü:** [HQ KARARI] Başlangıç mimarisi; scaffold ve CI doğrulandı, Northflank/Vercel/Supabase deployment hazırlığı incelemede ve live rollout henüz doğrulanmadı.
 **Teknoloji listesi:** [`TECH_STACK.md`](TECH_STACK.md).  
 **İş kuralları kaynakları:** [`DOMAIN.md`](DOMAIN.md), [`RULE_ENGINE.md`](RULE_ENGINE.md), [`UX.md`](UX.md) — iş semantiklerini burada tekrar yazmayın.
 
@@ -9,11 +9,11 @@
 ```mermaid
 flowchart LR
   Analyst[Analyst Browser] --> Web[Next.js Web / Vercel]
-  Web -->|REST + JWT| API[Spring Boot API / Railway]
+  Web -->|REST + JWT| API[Spring Boot API / Northflank]
   Web -->|Supabase Auth login| Auth[Supabase Auth]
   API -->|TLS, jOOQ transactions| DB[(Supabase PostgreSQL)]
-  Worker[Spring Boot Worker / Railway] <-->|Claim jobs, read/write events| DB
-  Worker -->|Synthetic generator| DB
+  Worker[Spring Boot Worker / Northflank] <-->|Future claim jobs, read/write events| DB
+  Worker -->|Future synthetic generator| DB
   API -.->|SSE events; polling fallback| Web
 ```
 
@@ -21,6 +21,18 @@ flowchart LR
 - Web (Next.js) **backend'in yerine geçmez**. Kritik business mutation sadece Spring API ile yürür.
 - Frontend yalnız kendi tenant'ına ait verilere sunucu-kontrollü erişir. Supabase'in DB Data API'si bu ürünün transaction API'si değildir.
 - Tek Postgres veri doğruluğu kaynağıdır; Redis / Kafka ilk sürümde zorunlu değildir.
+- FND-003 yalnız Worker'ın sürekli runtime ve heartbeat temelini kurar. Job claim, synthetic generator ve fraud evaluation ilgili sonraki ticket'lar tamamlanana kadar aktif davranış değildir.
+- Supabase Auth bağlantı/environment sözleşmesi FND-003'te hazırlanır; gerçek login/JWT doğrulama ve tenant authorization IAM-001 kapsamındadır.
+
+### Runtime modları
+
+| Mode | Yaşam döngüsü | HTTP / DB / migration davranışı |
+|---|---|---|
+| `APP_MODE=api` | Sürekli servis | HTTP + Actuator açar, DB readiness doğrular, Worker loop ve Flyway startup migration çalıştırmaz |
+| `APP_MODE=worker` | Sürekli servis | Public business controller açmaz; DB bağlantısı gözlemlenir, redacted heartbeat üretir, Flyway çalıştırmaz |
+| `APP_MODE=migrate` | Tek seferlik job | Flyway validation/migration çalıştırır ve başarı/hata exit code'u ile sonlanır; kalıcı HTTP servisi başlatmaz |
+
+Üç mode aynı immutable image ve release SHA'dan çalışır. `APP_ENV` local/staging/production davranış sınırını belirler; production'da eksik zorunlu environment değeri lokal varsayılana sessizce düşmez.
 
 ## 2. Backend modül sınırları
 
@@ -37,7 +49,7 @@ flowchart LR
 | `simulation` | Tekrar üretilebilir event paternleri ve rate kontrolü | Prod'a gerçek banka/veri entegrasyonu içermez |
 | `shared` | Ortak temeller, typed IDs, zaman/hata sözleşmeleri | Genel amaçlı servis yığınına dönüşmez |
 
-Her modülün HTTP/controller, service/domain, SQL/repository sınırı bellidir. Domain çekirdeği Spring HTTP veya Railway'e bağlı olmayacak. **Ayrı microservice veya ağır Clean Architecture katmanları zorunlu değil**; test edilebilir servis ve package sınırları yeterli.
+Her modülün HTTP/controller, service/domain, SQL/repository sınırı bellidir. Domain çekirdeği Spring HTTP veya Northflank'e bağlı olmayacak. **Ayrı microservice veya ağır Clean Architecture katmanları zorunlu değil**; test edilebilir servis ve package sınırları yeterli.
 
 ## 3. Yeni transaction değerlendirme yolu
 
@@ -79,16 +91,21 @@ Her modülün HTTP/controller, service/domain, SQL/repository sınırı bellidir
 flowchart TD
   PR[Ticket branch & PR] --> CI[GitHub Actions: web+Java+DB integration]
   CI -->|required green| Main[Protected main]
-  Main --> DBM[Versioned Flyway migration release step]
-  DBM --> API[Railway API + Worker rollout]
-  API --> Web[Vercel production deployment]
-  Web --> Smoke[HTTP + auth + demo flow smoke]
+  Main --> Image[Build immutable backend image / release SHA]
+  Image --> DBM[Northflank migration job; run and wait]
+  DBM --> Runtime[Same revision: Northflank API + Worker rollout]
+  Runtime --> Ready[API readiness + Worker liveness]
+  Ready --> Gate[GitHub release-ready check]
+  Gate --> Web[Vercel production domain assignment]
+  Web --> Smoke[Config + demo-safe smoke / SHA evidence]
 ```
 
-- **Main'den her merge** ilgili tüm sistemlere otomatik deploy tetikler; web prod'a, API/worker Railway'e, schema Supabase'e uygulanır. Tek pipeline içinde migration, backend, frontend sırayla yönetilir veya backward-compatible sözleşmeyle sağlayıcıların otomatik hook'ları koordine edilir.
-- Vercel PR preview olabilir; production DB'ye bağlama. Uygun bütçeyle ayrı staging Supabase/Railway; olmazsa preview mock API, production'da korumalı sentetik demo tenant.
+- **Hedef akışta** başarılı main CI sonrası protected GitHub release workflow'u immutable backend revision üretir; Flyway job aynı revision ile başarıyla tamamlanmadan API/Worker rollout başlamaz. API readiness, `/actuator/info` exact release SHA ve Worker canlılığı görülmeden `release-ready` check başarılı olmaz. Vercel Git deployment production domain'i bu check'i bekleyen Deployment Check üzerinden alır. Harici provider entegrasyonları kurulmadığı için bu sıra bugün `VERIFIED` değildir.
+- Northflank'in bağımsız image-change auto-deploy davranışı migration ile yarışmamalıdır; tek release workflow build → migrate/wait → aynı revision deploy sırasını yönetir. Detaylar [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md)'dedir.
+- Vercel Deployment Checks erişimi yoksa production candidate `--skip-domain` ile smoke edilir ve yalnız başarıdan sonra promote edilir; bağımsız production domain auto-promotion açılmaz.
+- Vercel PR preview production DB credential'ı almaz ve production API'ye sessiz fallback yapmaz. Supabase staging ve production ayrı projelerdir. Developer Sandbox'taki iki service slotu API + Worker tarafından tüketildiğinden aynı anda iki ek staging JVM servisi varsayılmaz.
 - İki ortamı karıştırma: local/demo verileri gerçek kurum verisi değildir. Migration geri dönüşü çoğu zaman ileri düzeltmeyle yapılır; otomatik destructive rollback'e güvenilmez.
-- Prod sistem başlangıcında fail-fast config, `/actuator/health/readiness`, deploy smoke; başarısız deploy'da ticket kapanmaz, eski uyumlu sürüme dönme/fix-forward uygulanır.
+- Production/demo sistem başlangıcında fail-fast config, `/actuator/health/readiness`, Worker heartbeat ve deploy smoke gerekir; başarısız deploy'da ticket kapanmaz, eski uyumlu image'a dönme veya fix-forward uygulanır.
 
 ## 8. Operasyonel riskler ve ölçülmesi gerekenler
 
@@ -96,7 +113,8 @@ flowchart TD
 - **Lock yarışları:** aynı transaction'a iki actor eşzamanlı açma, expired lease yeniden sahiplenme, stale token ile mutation testleri.
 - **İdempotency:** worker tekrar işlemesi, deploy sırasında restart, duplicate event ve rule version snapshot testleri.
 - **Latency:** event üretiminden işlenmiş satıra ve UI'ya ulaşma süresini gösteren demo ölçümü; ilk hafta sayısal SLO uydurulmaz.
-- **Maliyet:** Railway always-on API+worker ve Supabase'in DB/backup/compute planları maliyetli olabilir. Deployment öncesi plan/limit kontrolü.
+- **Maliyet/kota:** Northflank API+Worker iki sürekli service slotunun tamamını kullanır. Migration ve opsiyonel smoke job iki job adayıdır. 0.2 vCPU/512 MiB ve 0.5 vCPU/1024 MiB kaynak adaylarının ücretsiz erişimi ve JVM yeterliliği gerçek hesap/test olmadan varsayılmaz. Supabase DB/backup/compute ve Vercel plan sınırları ayrıca kontrol edilir.
+- **Ortam sınıfı:** Northflank Developer Sandbox akademik canlı demo için değerlendirilebilir; ticari production SLA/compliance iddiası oluşturmaz.
 
 ## 9. Kesinleştirilmesi gereken iş kuralları (mimari blocker değil)
 
