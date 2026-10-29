@@ -1,13 +1,6 @@
-name: Release
+name: Manual Release Recovery
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       release_sha:
@@ -23,27 +16,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release-ready:
-    name: release-ready
+  manual-release:
+    name: manual-release
     if: >-
       vars.DEPLOYMENT_AUTOMATION_ENABLED == 'true' &&
-      (
-        (
-          github.event_name == 'workflow_run' &&
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.head_branch == 'main'
-        ) ||
-        (
-          github.event_name == 'workflow_dispatch' &&
-          github.ref == 'refs/heads/main'
-        )
-      )
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: production
     env:
-      RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.release_sha || github.sha }}
+      RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
       RELEASE_BRANCH: main
     steps:
       - name: Check out release commit
@@ -74,16 +56,14 @@ jobs:
             exit 1
           fi
 
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            if ! git show-ref --verify --quiet refs/remotes/origin/main; then
-              echo "::error::origin/main is unavailable for manual release verification."
-              exit 1
-            fi
+          if ! git show-ref --verify --quiet refs/remotes/origin/main; then
+            echo "::error::origin/main is unavailable for manual release verification."
+            exit 1
+          fi
 
-            if ! git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main; then
-              echo "::error::Manual releases must use a commit contained in origin/main."
-              exit 1
-            fi
+          if ! git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main; then
+            echo "::error::Manual releases must use a commit contained in origin/main."
+            exit 1
           fi
 
       - name: Test release gate helpers

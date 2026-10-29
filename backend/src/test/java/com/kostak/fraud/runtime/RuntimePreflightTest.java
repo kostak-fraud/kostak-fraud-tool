@@ -26,6 +26,49 @@ class RuntimePreflightTest {
     }
 
     @Test
+    void deployedSpringProfileRequiresExplicitMatchingAppEnvironment() {
+        Map<String, String> missingAppEnvironment = local("worker");
+        missingAppEnvironment.put("SPRING_PROFILES_ACTIVE", "production");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> validate(missingAppEnvironment))
+                .withMessageContaining("APP_ENV is required");
+
+        Map<String, String> missingSpringProfile = deployed("worker");
+        missingSpringProfile.remove("SPRING_PROFILES_ACTIVE");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> validate(missingSpringProfile))
+                .withMessageContaining("SPRING_PROFILES_ACTIVE is required");
+
+        Map<String, String> conflicting = deployed("worker");
+        conflicting.put("SPRING_PROFILES_ACTIVE", "staging");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> validate(conflicting))
+                .withMessageContaining("conflicts with authoritative APP_ENV=production");
+
+        Map<String, String> productionWithAdditionalProfile = deployed("worker");
+        productionWithAdditionalProfile.put("SPRING_PROFILES_ACTIVE", "production,observability");
+        assertThat(validate(productionWithAdditionalProfile).environment()).isEqualTo("production");
+    }
+
+    @Test
+    void springProfileOverridesCannotBypassAppEnvironmentContract() {
+        Map<String, String> production = deployed("worker");
+        Properties properties = new Properties();
+        properties.setProperty("spring.profiles.active", "staging");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> RuntimePreflight.validate(production, properties, new String[0]))
+                .withMessageContaining("conflicts with authoritative APP_ENV=production");
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> RuntimePreflight.validate(
+                        production,
+                        new Properties(),
+                        new String[]{"--spring.profiles.active=staging"}
+                ))
+                .withMessageContaining("conflicts with authoritative APP_ENV=production");
+    }
+
+    @Test
     void rejectsMissingModeAndConflictingOverrides() {
         assertThatIllegalArgumentException().isThrownBy(() -> validate(new HashMap<>()));
 
@@ -160,6 +203,7 @@ class RuntimePreflightTest {
     private Map<String, String> deployed(String mode) {
         Map<String, String> environment = local(mode);
         environment.put("APP_ENV", "production");
+        environment.put("SPRING_PROFILES_ACTIVE", "production");
         environment.put("APP_RELEASE_SHA", "0123456789abcdef0123456789abcdef01234567");
         environment.put(
                 "SPRING_DATASOURCE_URL",

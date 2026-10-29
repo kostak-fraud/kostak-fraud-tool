@@ -196,16 +196,17 @@ Java 25 base tag'i gerçek build ile doğrulanır. Build secret image layer'ına
 
 Tek-sorumlu otomasyon iki katmandan oluşur:
 
-1. `.github/workflows/release.yml`, başarılı `main` **CI** workflow run'ından sonra `workflow_run` ile uyanır.
-2. `DEPLOYMENT_AUTOMATION_ENABLED=true` değilse `release-ready` job'u `skipped` olur ve harici release tetiklenmez.
-3. Release job'u GitHub'ın protected `production` environment'ında çalışır; job/check adı tam olarak `release-ready` kalır.
-4. Workflow, `NORTHFLANK_API_TOKEN` secret'ı ve aşağıdaki repository variables ile Northflank workflow API'sini tetikler:
+1. `.github/workflows/ci.yml` içindeki `release-ready`, aynı `main` push çalıştırmasının `frontend-ci` ve `backend-ci` job'larını `needs` ile bekler. Ayrı bir `workflow_run` bağlamı kullanılmaz.
+2. Job `RELEASE_SHA`, `GITHUB_SHA` ve checkout SHA'nın birebir aynı olduğunu doğrular. Böylece art arda iki main commit'i geldiğinde check her zaman test edilen kendi revision'ına bağlı kalır.
+3. `DEPLOYMENT_AUTOMATION_ENABLED=true` değilse `release-ready` job'u `skipped` olur ve harici release tetiklenmez.
+4. Release job'u GitHub'ın protected `production` environment'ında çalışır; job/check adı tam olarak `release-ready` kalır.
+5. Workflow, `NORTHFLANK_API_TOKEN` secret'ı ve aşağıdaki repository variables ile Northflank workflow API'sini tetikler:
    - `NORTHFLANK_PROJECT_ID`
    - `NORTHFLANK_WORKFLOW_ID`
    - `PRODUCTION_API_BASE_URL`
-5. Northflank workflow'a `COMMIT_SHA` ve `BRANCH` arguments geçirilir. Trigger edilen run başarı/hata sonucuna kadar poll edilir; fire-and-forget başarı sayılmaz.
+6. Northflank workflow'a `COMMIT_SHA` ve `BRANCH` arguments geçirilir. Trigger edilen run başarı/hata sonucuna kadar poll edilir; fire-and-forget başarı sayılmaz.
 
-`workflow_dispatch` yalnız kontrollü yeniden çalıştırma/kurtarma yoludur; seçilen full SHA'nın `origin/main` geçmişinde olduğu doğrulanmadan release başlatmaz.
+`.github/workflows/release.yml` içindeki `workflow_dispatch` yalnız kontrollü backend yeniden çalıştırma/kurtarma yoludur; seçilen full SHA'nın `origin/main` geçmişinde olduğu doğrulanmadan release başlatmaz. Job/check adı bilinçli olarak `manual-release`tir ve Vercel'in beklediği `release-ready` check'ini üretemez. Önceki revision'a manuel backend dönüşü frontend'i otomatik promote etmez; uyumluluk incelemesinden sonra karşılık gelen Vercel rollback/promote ayrıca ve açıkça yapılır. Tercih edilen genel rollback, `main` üzerinde revert/fix-forward commit'i oluşturup normal exact-SHA kapısından geçmektir.
 
 Northflank workflow'un kendi sırası:
 
@@ -276,7 +277,7 @@ Hedef main release sırası:
 
 1. PR quality checks.
 2. Protected `main` merge ve başarılı `CI` workflow run.
-3. `release.yml` `workflow_run` tetiklenmesi; `DEPLOYMENT_AUTOMATION_ENABLED=true` ve protected `production` environment gate.
+3. Aynı CI run'ında `release-ready` job'unun iki required job'u beklemesi; exact `GITHUB_SHA` eşleşmesi, `DEPLOYMENT_AUTOMATION_ENABLED=true` ve protected `production` environment gate.
 4. `COMMIT_SHA`/`BRANCH` ile Northflank workflow trigger ve completion poll.
 5. Immutable image/revision build.
 6. Controlled Flyway migration job.
@@ -292,6 +293,7 @@ Hedef main release sırası:
 ### Repository/local kanıtı
 
 - Backend `./mvnw -B verify`.
+- Release workflow sözleşme testleri: automatic gate aynı CI SHA'sına bağlıdır; manuel recovery `release-ready` adı üretemez.
 - Frontend frozen install, lint, typecheck, test ve build.
 - Docker image build ve non-root runtime.
 - API mode startup + liveness/readiness + `/actuator/info` release SHA.

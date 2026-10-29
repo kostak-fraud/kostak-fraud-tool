@@ -27,11 +27,19 @@ public final class RuntimePreflight {
 
     public static RuntimeSettings validate(Map<String, String> environment, Properties systemProperties, String[] args) {
         AppMode mode = AppMode.parse(environment.get("APP_MODE"));
-        String appEnvironment = normalizeEnvironment(environment.get("APP_ENV"));
+        String configuredAppEnvironment = environment.get("APP_ENV");
+        String appEnvironment = normalizeEnvironment(configuredAppEnvironment);
         String releaseSha = normalizeReleaseSha(environment.get("APP_RELEASE_SHA"));
 
         validateModeOverride(mode, argumentValue(args, "app.mode"), "command line app.mode");
         validateModeOverride(mode, systemProperties.getProperty("app.mode"), "system property app.mode");
+        validateSpringProfiles(
+                appEnvironment,
+                configuredAppEnvironment,
+                environment.get("SPRING_PROFILES_ACTIVE"),
+                systemProperties.getProperty("spring.profiles.active"),
+                argumentValue(args, "spring.profiles.active")
+        );
         validateWebApplicationType(
                 mode,
                 environment.get("SPRING_MAIN_WEB_APPLICATION_TYPE"),
@@ -86,6 +94,74 @@ public final class RuntimePreflight {
             throw new IllegalArgumentException("APP_RELEASE_SHA contains unsupported characters");
         }
         return normalized;
+    }
+
+    private static void validateSpringProfiles(
+            String appEnvironment,
+            String configuredAppEnvironment,
+            String environmentProfiles,
+            String systemPropertyProfiles,
+            String commandLineProfiles
+    ) {
+        boolean activeProfilesConfigured = false;
+        activeProfilesConfigured |= validateSpringProfileSource(
+                appEnvironment,
+                configuredAppEnvironment,
+                environmentProfiles,
+                "SPRING_PROFILES_ACTIVE"
+        );
+        activeProfilesConfigured |= validateSpringProfileSource(
+                appEnvironment,
+                configuredAppEnvironment,
+                systemPropertyProfiles,
+                "system property spring.profiles.active"
+        );
+        activeProfilesConfigured |= validateSpringProfileSource(
+                appEnvironment,
+                configuredAppEnvironment,
+                commandLineProfiles,
+                "command line spring.profiles.active"
+        );
+
+        if (DEPLOYED_ENVIRONMENTS.contains(appEnvironment) && !activeProfilesConfigured) {
+            throw new IllegalArgumentException(
+                    "SPRING_PROFILES_ACTIVE is required and must include APP_ENV for staging and production"
+            );
+        }
+    }
+
+    private static boolean validateSpringProfileSource(
+            String appEnvironment,
+            String configuredAppEnvironment,
+            String value,
+            String source
+    ) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        Set<String> environmentProfiles = Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(profile -> !profile.isEmpty())
+                .map(profile -> profile.toLowerCase(Locale.ROOT))
+                .filter(ALLOWED_ENVIRONMENTS::contains)
+                .collect(java.util.stream.Collectors.toSet());
+
+        boolean deployedProfileActive = environmentProfiles.stream().anyMatch(DEPLOYED_ENVIRONMENTS::contains);
+        if (deployedProfileActive && (configuredAppEnvironment == null || configuredAppEnvironment.isBlank())) {
+            throw new IllegalArgumentException("APP_ENV is required when a deployed Spring profile is active");
+        }
+        if (environmentProfiles.size() > 1) {
+            throw new IllegalArgumentException(source + " contains conflicting environment profiles");
+        }
+        if (!environmentProfiles.isEmpty() && !environmentProfiles.contains(appEnvironment)) {
+            throw new IllegalArgumentException(source + " conflicts with authoritative APP_ENV=" + appEnvironment);
+        }
+        if (DEPLOYED_ENVIRONMENTS.contains(appEnvironment) && !environmentProfiles.contains(appEnvironment)) {
+            throw new IllegalArgumentException(source + " must include APP_ENV=" + appEnvironment);
+        }
+
+        return true;
     }
 
     private static void validateModeOverride(AppMode mode, String configuredValue, String source) {
