@@ -7,7 +7,7 @@
 - Her ticket için ayrı **Executor ve Worker chat**. Executor önce preflight/DoR, sonra branch + prompt, ardından worker handoff review + merge + canlı smoke.
 - Tek ticket'ta tek ölçülebilir sonuç; kapsam artarsa alt ticket açılır. `P0` akademik demo için gerekli; `P1` zaman kalırsa veya P0'ı tamamlamak için şartsa.
 - Büyük kuralların/ticketların tamamı son hafta beklenmez; ilk dikey dilim **generator → veri tablosu → basit rule hit → investigation** olarak erken çalıştırılır.
-- **İlk hafta hedefi:** FND-001 → FND-002 → FND-003 + uygun zamanda UI-001. Northflank/Supabase/Vercel erişimi yoksa deployment hazırlığı ilerleyebilir; ancak canlı rollout ve smoke doğrulanamaz, FND-003 `DONE` olmaz ve ilerleme raporunda deploy olmuş gibi gösterilmez.
+- **İlk hafta hedefi:** FND-001 → FND-002 → FND-003 + UI-001. UI-001 main'e merge edildi; FND-003 staging çalışsa da production release gate hâlâ fail-closed. Sonraki ürün bağımlılığı IAM-001 → TX-001 → TX-002/TX-003.
 - Açık domain politikaları bazı ticket'ların DoR blocker'ıdır; `DECISIONS.md` ve ilgili source-of-truth doğrulanır. Transaction alan listesi gelmeden mock sözlükteki varsayımlar ayrıca gözden geçirilir.
 
 ## Öncelik ve bağımlılık indeksi
@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|
 | [FND-001](FND-001.md) | Foundation | P0 | M | — | GitHub monorepo içinde Java/Spring Boot ve Nextjs çalışan iskeletini, lokal DB ortamını ve ilk health endpoint/shell UI oluştur. |
 | [FND-002](FND-002.md) | Foundation | P0 | S | FND-001 | PR kalite kapısı ve protected main akışını oluştur |
-| [FND-003](FND-003.md) | Foundation | P0 | M | FND-001, FND-002 | Vercel web, Northflank API/worker, explicit migration, Supabase DB/Auth ve main sonrası smoke hazırlığı kur |
+| [FND-003](FND-003.md) | Foundation | P0 | M | FND-001, FND-002 | Vercel web, Railway API/worker, explicit migration, Supabase DB/Auth ve main sonrası smoke hazırlığı kur |
 | [UI-001](UI-001.md) | UI Foundation | P0 | M | FND-001 | Kullanılabilir sol navigasyon, channel tabs ve ortak component/tasarım token temelini kur |
 | [IAM-001](IAM-001.md) | Security | P0 | M | FND-001 | Tenant, kullanıcı üyeliği, izin modeli ve Supabase Auth JWT doğrulamasını backend’e entegre et |
 | [TX-001](TX-001.md) | Transactions | P0 | M | FND-001, IAM-001 | Mock transaction kalıcı şema, Flyway migration ve indekslenebilir alan sözlüğü uygula |
