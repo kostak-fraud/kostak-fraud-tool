@@ -38,7 +38,7 @@ final class PostgresCompatibilityAssertions {
 
         Flyway flyway = migrator(postgres);
         flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("1");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
 
         try (var connection = DriverManager.getConnection(
                 postgres.getJdbcUrl(),
@@ -54,6 +54,12 @@ final class PostgresCompatibilityAssertions {
             assertThat(connection.getMetaData().getDatabaseMajorVersion())
                     .isEqualTo(Integer.parseInt(expectedMajorVersion));
             assertThat(rowCount).isEqualTo(1);
+
+            Integer permissionCount = dsl
+                    .selectCount()
+                    .from(table(name("role_permissions")))
+                    .fetchOne(0, Integer.class);
+            assertThat(permissionCount).isEqualTo(17);
         }
 
         flyway.migrate();
