@@ -5,9 +5,9 @@
 - Ticket: `FND-003` — Vercel web, Northflank API/Worker, Supabase DB/Auth ve kontrollü release hazırlığı
 - Branch: `feat/fnd-003-deployment`
 - Base SHA: `fd5db3d79d0b127b2591d02828226bf604a59078`
-- Doğrulanan implementation head (handoff commit'i öncesi): `e004c08d20e71771ca163841d17ea16635f2a426`
+- Doğrulanan implementation head (handoff commit'i öncesi): `fe7855581739060d6e2e5df99800d5f4e71557aa`
 - PR: https://github.com/kostak-fraud/kostak-fraud-tool/pull/4
-- Executor revision: PR yorumu `#issuecomment-6484665251` doğrultusunda exact-SHA release check ve deployed profile fail-fast düzeltildi.
+- Executor revisions: PR yorumları `#issuecomment-6484665251` ve `#issuecomment-6485039481` doğrultusunda exact-SHA check, deployed profile fail-fast ve superseded automatic release fence düzeltildi.
 - Kısa amaç: Tek Java 25 image'ını API, sürekli Worker ve tek seferlik Migration modlarına ayırmak; migration-before-rollout, ortam izolasyonu ve fail-closed release gate hazırlığını kurmak. Gerçek provider rollout'u Executor'a bırakılmıştır.
 
 ## 2. Yapılan değişiklikler
@@ -18,7 +18,7 @@
 - Worker DB startup probe, periyodik redacted heartbeat, non-daemon sürekli process ve graceful shutdown uygulandı. Worker healthcheck eksik, symlink, bayat veya `db_status=DOWN` heartbeat'i reddeder.
 - Java 25 multi-stage, digest-pinned, non-root Docker image ve local Compose `postgres → migrate → api/worker` sırası eklendi.
 - PostgreSQL 17.11 ve 18.3 üzerinde iki eşzamanlı Flyway migrator, schema doğrulama ve jOOQ probe testleri eklendi. Bu, Flyway yarış kilidini ve V1 idempotency davranışını sınar.
-- `release-ready`, aynı `main` CI run'ında `frontend-ci` + `backend-ci` başarılarını bekler ve check SHA / release SHA / checkout SHA eşitliğini doğrular. Böylece `workflow_run` bağlamının farklı revision'a check yazması engellendi. Northflank run benzersiz adla tetiklenir, run ID bulunur, SHA/branch arguments doğrulanır ve sonuç başarıya kadar poll edilir. Manuel SHA, repo kodu çalıştırılmadan önce `origin/main` ancestry kontrolünden geçer; manuel job farklı `manual-release` adıyla Vercel gate'ini açamaz.
+- `release-ready`, aynı `main` CI run'ında `frontend-ci` + `backend-ci` başarılarını bekler ve check SHA / release SHA / checkout SHA eşitliğini doğrular. Northflank başlamadan hemen önce ve provider smoke sonrasında GitHub ref API'sinden güncel main HEAD tekrar okunur; eski geç tamamlanan veya HEAD'i doğrulanamayan otomatik run fail-closed olur. Böylece hem `workflow_run` check association hem de concurrency'nin garanti etmediği commit ordering riski kapatıldı. Northflank run benzersiz adla tetiklenir, run ID bulunur, SHA/branch arguments doğrulanır ve sonuç başarıya kadar poll edilir. Manuel SHA, repo kodu çalıştırılmadan önce `origin/main` ancestry kontrolünden geçer; manuel job latest-main kısıtına tabi değildir ve farklı `manual-release` adıyla Vercel gate'ini açamaz.
 - Vercel `frontend/` root yapılandırması, public-only frontend env sözleşmesi ve Preview/Production ayrımı eklendi. Deployment Checks yoksa `--prod --skip-domain → smoke → promote` yolu runbook'ta tanımlandı.
 - `docs/DEPLOYMENT_RUNBOOK.md`, mimari/stack/ADR/delivery/backlog ve README güncellendi. Harici kaynaklar veya canlı deployment varmış gibi işaretlenmedi.
 
@@ -47,18 +47,19 @@ DB etkisi:
 | Docker image build ve non-root runtime | PASS | `backend-ci` içindeki `Build and inspect backend runtime image`; user `10001:10001` doğrulandı |
 | Vercel Preview/Production ve secret izolasyonu | PREPARED / LIVE UNVERIFIED | `frontend/vercel.json`, env örnekleri, `docs/DEPLOYMENT_RUNBOOK.md`; gerçek Vercel proje/build yok |
 | Northflank workflow completion + SHA/branch + API smoke gate | PREPARED / LIVE UNVERIFIED | `.github/workflows/ci.yml`, `.github/workflows/release.yml`, release script/workflow sözleşme testleri; provider workflow/token/project kurulmadı |
+| Eski otomatik commit'in yeni revision üzerine yayınlanmaması | PASS (repository scope) / LIVE UNVERIFIED | Rollout öncesi + smoke sonrası latest-main guard; hızlı iki push regresyon testi; gerçek Northflank run'ı yok |
 | Production secret repo/PR/log dışı | PASS (repository scope) | Secret pattern taraması yalnız yasaklayıcı doküman referanslarını buldu; PR workflow production secret kullanmıyor |
 | Canlı URL, schema version, provider revision ve smoke | NOT RUN / BLOCKER | Harici Northflank, Supabase ve Vercel kaynakları kurulmadı; kanıt uydurulmadı |
 
 Test özeti:
 
-- Revision PR CI: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/40797667006
-  - `frontend-ci`: PASS — 6 release/workflow gate testi + worker healthcheck script, frozen install, lint, typecheck, 2 frontend test, Next.js production build.
+- Second revision PR CI: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/40798968050
+  - `frontend-ci`: PASS — 10 release/workflow gate testi + worker healthcheck script, frozen install, lint, typecheck, 2 frontend test, Next.js production build.
   - `backend-ci`: PASS — Java 25 Maven verify; 17 unit/application test + 2 PostgreSQL integration testi; PostgreSQL 17.11 ve 18.3; Docker image build/non-root/healthcheck smoke.
   - `release-ready`: PR context'inde tasarım gereği `skipped`; job yalnız `main` push'unda ve iki required job başarılıysa çalışır.
 - Lokal `corepack pnpm install --frozen-lockfile`: PASS.
 - Lokal `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`: PASS.
-- Lokal release gate/workflow sözleşme Node testleri: PASS, 6/6.
+- Lokal release gate/workflow sözleşme Node testleri: PASS, 10/10.
 - Lokal worker healthcheck WSL/Linux testi: PASS.
 - `docker compose --profile runtime config --quiet`: PASS.
 - `git diff --check`: PASS.
@@ -71,7 +72,7 @@ Test özeti:
 
 - Tenant/RBAC: İşlem/tenant verisi veya authorization eklenmedi. Supabase URL/JWKS/audience yalnız fail-fast contract'tır; gerçek JWT validation ve backend membership `IAM-001` kapsamındadır.
 - Secret güvenliği: Frontend yalnız `NEXT_PUBLIC_*` publishable değerlerini kabul eder. DB password, Northflank token ve provider deployment secretları yalnız provider/protected environment store'larında tanımlanmalıdır.
-- Release güvenliği: Otomatik production release yalnız aynı `main` CI run'ında iki required job başarılı olduktan ve `GITHUB_SHA == RELEASE_SHA == checkout SHA` doğrulandıktan sonra protected `production` environment'ta çalışır. Manuel SHA `main` ancestry doğrulanmadan repository script'i çalıştırılmaz; `manual-release` check'i Vercel `release-ready` kapısını karşılayamaz.
+- Release güvenliği: Otomatik production release yalnız aynı `main` CI run'ında iki required job başarılı olduktan, `GITHUB_SHA == RELEASE_SHA == checkout SHA` doğrulandıktan ve release SHA rollout öncesinde güncel main HEAD çıktıktan sonra protected `production` environment'ta çalışır. Provider smoke sonrasında latest-main kontrolü tekrar geçmeden check başarılı olmaz. GitHub ref API hatası da fail-closed'dur. Manuel SHA `main` ancestry doğrulanmadan repository script'i çalıştırılmaz; manuel rollback latest-main kısıtından bilinçli olarak muaftır ve `manual-release` check'i Vercel `release-ready` kapısını karşılayamaz.
 - Migration: API/Worker Flyway'i açamaz. Northflank workflow concurrency `forbid` ve explicit migration/wait sırası ile kurulmalıdır. Destructive rollback yok; backup/recovery + fix-forward kullanılır.
 - Rollback: Schema ile uyumlu önceki immutable API/Worker image'ına ve önceki Vercel deployment'ına dönüş mümkündür; schema otomatik geri alınmaz.
 - Gözlemlenebilirlik: API readiness ve release SHA; Worker redacted heartbeat/DB status/release SHA sağlar. Full JDBC URL veya credential loglanmaz.
