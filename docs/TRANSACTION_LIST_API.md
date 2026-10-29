@@ -83,5 +83,20 @@ keyset/cursor ayrı bir sözleşme olarak değerlendirilebilir.
 
 Page ve exact-count sorguları aynı üç predicate'i kullanır: authorized `tenant_id`, istenen `channel`
 ve `evaluation_state = 'processed'`. Exact `COUNT(*)` eşleşen küme büyüdükçe lineer maliyet taşır ve
-her list isteğinde çalışır. TX-003 entegrasyon testi 50.000 sentetik PostgreSQL satırında doğal planner
-ile `EXPLAIN ANALYZE, BUFFERS` çalıştırır; ölçülen plan ve indeks kararı Worker handoff'unda kaydedilir.
+her list isteğinde çalışır.
+
+PostgreSQL 18.3 üzerinde 50.000 sentetik satırla (`40.000` hedef tenant, `10.000` diğer tenant ve hedef
+tenant satırlarının `%10`u processed) doğal planner kullanılarak `ANALYZE` sonrası ölçülen plan:
+
+- İlk 50 satırlık page sorgusu mevcut `transactions_tenant_channel_occurred_id_idx` ile index scan
+  kullandı; 450 uygun olmayan evaluation state filtrelendi, 24 shared buffer hit ve `0,180 ms`
+  execution time gözlendi.
+- Exact-count sorgusu 50.000 satır üzerinde sequential scan kullandı; 4.000 eşleşen satır sayıldı,
+  46.000 satır filtrelendi, 1.665 shared buffer hit ve `12,380 ms` execution time gözlendi.
+
+Bu ölçümde yeni migration/index eklenmedi. İlk sayfa mevcut ordering indexiyle ucuzdur; measured exact
+count MVP veri hacminde kabul edilebilir olsa da veri büyüdükçe maliyeti artacaktır. Processed partial
+index yazma/depolama maliyeti ekler ve exact count'un eşleşen kayıt sayısıyla büyümesini tamamen
+ortadan kaldırmaz. Daha büyük fixture veya production-benzeri istatistiklerde count maliyeti belirgin
+hale gelirse partial index, approximate/deferred count ya da cursor sözleşmesi yeniden ölçülmelidir;
+bu sonuç bir production latency garantisi değildir.
