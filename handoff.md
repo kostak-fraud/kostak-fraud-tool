@@ -1,16 +1,67 @@
-# Ticket Handoff — FND-003
+# Ticket Handoff — FND-003 Railway Docker Build Compatibility Fix
 
 ## 1. Ticket ve branch
 
-- Ticket: `FND-003` — Vercel web, Northflank API/Worker, Supabase DB/Auth ve kontrollü release hazırlığı
-- Branch: `feat/fnd-003-deployment`
-- Base SHA: `fd5db3d79d0b127b2591d02828226bf604a59078`
-- Doğrulanan implementation head (handoff commit'i öncesi): `fe7855581739060d6e2e5df99800d5f4e71557aa`
-- PR: https://github.com/kostak-fraud/kostak-fraud-tool/pull/4
-- Executor revisions: PR yorumları `#issuecomment-6484665251` ve `#issuecomment-6485039481` doğrultusunda exact-SHA check, deployed profile fail-fast ve superseded automatic release fence düzeltildi.
-- Kısa amaç: Tek Java 25 image'ını API, sürekli Worker ve tek seferlik Migration modlarına ayırmak; migration-before-rollout, ortam izolasyonu ve fail-closed release gate hazırlığını kurmak. Gerçek provider rollout'u Executor'a bırakılmıştır.
+- Ticket: `FND-003` hedefli devamı — Railway Docker build compatibility fix
+- Branch: `codex/fnd-003-railway-docker-build`
+- Base branch/SHA: `main` / `278cacda8a5ad6453651ecd2f2820cafebd12f25`
+- Doğrulanan implementation head (handoff commit'i öncesi): `493e5f9a7684a96830b1f8ca0a2ebd902f8e7c57`
+- PR: https://github.com/kostak-fraud/kostak-fraud-tool/pull/5
+- Kısa amaç: Railway'in reddettiği anonymous BuildKit Maven cache mount'unu kaldırmak; mevcut Java 25 image/runtime sözleşmesini değiştirmeden API ve Worker image build'ini tekrar mümkün hâle getirmek.
 
-## 2. Yapılan değişiklikler
+## 2. Railway Docker build compatibility fix
+
+Railway'de hem `kostak-fraud-tool` API hem `kostak-worker` image build'i aşağıdaki parser hatasıyla durdu:
+
+```text
+dockerfile invalid: flag '--mount=type=cache,target=/root/.m2' is missing an id argument at Line 10
+```
+
+Uygulanan çözüm:
+
+- `backend/Dockerfile` içindeki `RUN --mount=type=cache,target=/root/.m2 ...` kaldırıldı; standart `RUN ./mvnw -B -DskipTests package ...` kullanılıyor.
+- Maven dependency cache optimizasyonundan vazgeçildi; build taşınabilirliği tercih edildi.
+- Java 25 build/runtime stage'leri, iki pinned image digest'i, multi-stage JAR copy, non-root `10001:10001`, `JAVA_TOOL_OPTIONS`, port ve `ENTRYPOINT ["java", "-jar", "/app/application.jar"]` değişmedi.
+- `APP_MODE=api|worker|migrate` tek immutable image davranışı değiştirilmedi.
+- `backend-ci`, Railway uyumsuz cache mount yeniden eklenirse gerçek Docker build başlamadan fail edecek regresyon kontrolü içeriyor. Required job adı `backend-ci` değişmedi.
+
+Değişen dosyalar:
+
+- `backend/Dockerfile`
+- `.github/workflows/ci.yml`
+- `handoff.md`
+
+Doğrulama:
+
+| Kontrol | Sonuç | Kanıt / not |
+|---|---|---|
+| Railway cache-mount regresyon kontrolü | PASS | `backend-ci` cache mount bulunmadığını doğruladı |
+| `docker build --tag ... backend` | PASS (CI) | GitHub Actions run `40805235908`, gerçek `backend/` context build'i |
+| Java 25 Maven package/image build | PASS (CI) | Docker build logunda Maven `BUILD SUCCESS` |
+| Runtime user | PASS (CI) | Image inspect sonucu `10001:10001` assertion'ı geçti |
+| API healthcheck smoke | PASS (CI) | `/app/worker-healthcheck.sh`, `APP_MODE=api` |
+| Worker eksik-heartbeat negative smoke | PASS (CI) | Healthcheck eksik heartbeat'i başarı saymadı |
+| Backend testleri | PASS (CI) | 17 unit/application + PostgreSQL 17.11/18.3 integration testleri |
+| Frontend ve release yardımcıları | PASS (CI) | `frontend-ci`; 10 release testi, lint/typecheck/test/build |
+| Lokal release helper testleri | PASS | 10/10 |
+| Lokal worker healthcheck shell testleri | PASS | WSL üzerinden |
+| Compose runtime config | PASS | `docker compose --profile runtime config --quiet` |
+| Lokal image build | UNVERIFIED | Docker Desktop process'leri vardı fakat daemon iki context'te de yanıt vermedi; komut kontrollü olarak durduruldu |
+
+PR açılması mevcut Git entegrasyonu tarafından otomatik bir Vercel **Preview** deployment'ı tetikledi ve check başarılı oldu. Worker manuel Vercel/Railway deployment veya production promotion başlatmadı. Bu PR Railway canlı redeploy kanıtı değildir.
+
+Railway'de yeniden deployment öncesi:
+
+1. Her iki servisin build root/context ayarının `backend/` ve Dockerfile'ın bu context içindeki `Dockerfile` olduğundan emin ol.
+2. API'de `APP_MODE=api`, Worker'da `APP_MODE=worker` değerini; `APP_ENV` ile `SPRING_PROFILES_ACTIVE` tutarlılığını kontrol et.
+3. Provider start command'in image `ENTRYPOINT`ini yanlışlıkla override etmediğini doğrula.
+4. API/Worker ile aynı revision kullanan migration adımını DB rollout'tan önce ayrıca doğrula; bu fix DB veya Flyway'i canlıda çalıştırmadı.
+5. Supabase connection/TLS/credential ve `APP_RELEASE_SHA` değerlerini secret çıktısı almadan kontrol et.
+6. Önce build logunda Dockerfile parser aşamasının geçtiğini, ardından API readiness ve Worker heartbeat'i doğrula.
+
+## 3. Önceki FND-003 tesliminden devralınanlar
+
+Bu bölüm `main`e merge edilmiş önceki FND-003 handoff özetidir ve tarihsel olarak Northflank adını içerir. HQ'nun güncel hedefi Railway'dir; bu dar compatibility PR'ı deployment mimarisi ve provider dokümanlarını baştan yazmaz.
 
 - `APP_MODE=api|worker|migrate` authoritative runtime preflight'i eklendi. API/Worker Flyway'i açamaz; Migration non-web çalışır, Flyway'i çalıştırır ve tamamlanınca exit eder.
 - Staging/Production için explicit ve birbiriyle uyumlu `APP_ENV` / `SPRING_PROFILES_ACTIVE`, tam 40 karakter commit SHA, TLS'li ve database adı açık PostgreSQL URL'si, ayrı credential, en fazla 4 bağlantılık pool ve API Supabase Auth sözleşmesi fail-fast doğrulanır. Deployed Spring profili `APP_ENV` olmadan, deployed `APP_ENV` ise eşleşen aktif profil olmadan başlayamaz. IAM/JWT enforcement uygulanmadı; `IAM-001` kapsamındadır.
@@ -35,7 +86,7 @@ DB etkisi:
 - API ve Worker startup migration çalıştırmaz. Migration yalnız explicit `APP_MODE=migrate` job'ında çalışır.
 - PostgreSQL 17/18 compatibility ve eşzamanlı migration davranışı Testcontainers ile doğrulandı.
 
-## 3. Kabul kriterleri ve test kanıtı
+## 4. Önceki FND-003 kabul kriterleri ve test kanıtı
 
 | Kriter | Sonuç | Kanıt |
 |---|---|---|
@@ -68,7 +119,7 @@ Test özeti:
 - Lokal Docker/üç-mode Compose smoke: UNVERIFIED — Docker Desktop process/daemon yanıt vermedi. Aynı revision Dockerfile'ı PR `backend-ci` üzerinde build edildi; non-root `10001:10001` ve image healthcheck smoke geçti.
 - Manuel UI/UX: Uygulanmadı; bu ticket yeni kullanıcı ekranı içermiyor.
 
-## 4. Güvenlik ve operasyon
+## 5. Güvenlik ve operasyon
 
 - Tenant/RBAC: İşlem/tenant verisi veya authorization eklenmedi. Supabase URL/JWKS/audience yalnız fail-fast contract'tır; gerçek JWT validation ve backend membership `IAM-001` kapsamındadır.
 - Secret güvenliği: Frontend yalnız `NEXT_PUBLIC_*` publishable değerlerini kabul eder. DB password, Northflank token ve provider deployment secretları yalnız provider/protected environment store'larında tanımlanmalıdır.
@@ -77,7 +128,7 @@ Test özeti:
 - Rollback: Schema ile uyumlu önceki immutable API/Worker image'ına ve önceki Vercel deployment'ına dönüş mümkündür; schema otomatik geri alınmaz.
 - Gözlemlenebilirlik: API readiness ve release SHA; Worker redacted heartbeat/DB status/release SHA sağlar. Full JDBC URL veya credential loglanmaz.
 
-## 5. Bilinen eksikler ve riskler
+## 6. Bilinen eksikler ve riskler
 
 - BLOCKER: Northflank, Supabase ve Vercel gerçek hesap/proje/resource/secret kurulumu ve live rollout yapılmadı. FND-003 `DONE` değildir.
 - Executor'ın son provider preflight'ında `kostak-fraud-prod` ve `kostak-fraud-staging` Supabase projeleri `INACTIVE`, repository'ye bağlı Vercel projesi ise bulunamadı. Veritabanları yeniden aktif edilmeden canlı migration; Vercel projesi bağlanmadan Deployment Check doğrulaması yapılamaz.
@@ -97,7 +148,7 @@ Executor'ın özellikle incelemesi gerekenler:
 - Vercel `release-ready` Deployment Check bağlantısı; özellik yoksa auto domain assignment kapalı staged promotion yolu.
 - Supabase service DB role'ünün superuser/BYPASSRLS olmaması ve staging/production credential izolasyonu.
 
-## 6. Sonraki aksiyon
+## 7. Sonraki aksiyon
 
 - İncelemeye hazır mı? **Evet, repository/PR hazırlığı incelemeye hazır. Canlı deployment ve ticket DONE kararı hazır değildir.**
 - Executor sırası: PR diff + CI incele → provider preflight/kota → staging kaynakları ve smoke → production kaynakları/migration/release gate → Vercel domain promotion → URL/SHA/schema evidence → ancak sonra merge/deploy politikasına göre ticket kapanışı.

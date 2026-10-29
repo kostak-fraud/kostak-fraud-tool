@@ -7,7 +7,8 @@ WORKDIR /workspace
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY src/ src/
-RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -DskipTests package && \
+# Railway's Dockerfile parser rejects anonymous cache mounts, so keep this build step portable.
+RUN ./mvnw -B -DskipTests package && \
     cp target/kostak-backend-*.jar /workspace/application.jar
 
 FROM eclipse-temurin:25-jre-jammy@sha256:7d1b8bf8b361b932f8c76589b963bc164e4fff416d832169f8dfe26c8aae8f50

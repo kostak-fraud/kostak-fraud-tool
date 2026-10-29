@@ -83,6 +83,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if grep -q -- '--mount=type=cache' backend/Dockerfile; then
+            echo "::error::Railway-compatible backend Dockerfile must not use BuildKit cache mounts."
+            exit 1
+          fi
+
           image="kostak-backend:${GITHUB_SHA}"
           docker build --tag "$image" backend
 
