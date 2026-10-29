@@ -73,10 +73,15 @@ final class PostgresCompatibilityAssertions {
             Flyway flyway,
             CountDownLatch ready,
             CountDownLatch start
-    ) throws Exception {
+    ) {
         ready.countDown();
-        if (!start.await(10, TimeUnit.SECONDS)) {
-            throw new IllegalStateException("Timed out waiting to start concurrent migration test");
+        try {
+            if (!start.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out waiting to start concurrent migration test");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Concurrent migration test was interrupted", interrupted);
         }
         flyway.migrate();
         flyway.validate();
