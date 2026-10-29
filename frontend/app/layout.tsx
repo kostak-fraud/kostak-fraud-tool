@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Kostak Fraud Tool",
-  description: "Foundation scaffold for the Kostak Fraud Tool",
+  description: "Fraud monitoring workspace for payment transactions and rules.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
