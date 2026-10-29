@@ -62,6 +62,8 @@ public final class RuntimePreflight {
                 "command line spring.flyway.enabled");
 
         validateSimulationSetting(appEnvironment, environment.get("APP_SIMULATION_ENABLED"));
+        validateSimulationSetting(appEnvironment, systemProperties.getProperty("app.simulation.enabled"));
+        validateSimulationSetting(appEnvironment, argumentValue(args, "app.simulation.enabled"));
 
         List<String> corsOrigins = parseAndValidateCorsOrigins(
                 environment.get("APP_CORS_ALLOWED_ORIGINS"),

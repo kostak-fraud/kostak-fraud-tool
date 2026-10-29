@@ -184,6 +184,19 @@ class RuntimePreflightTest {
         production.put("APP_SIMULATION_ENABLED", "false");
         assertThat(validate(production).environment()).isEqualTo("production");
 
+        Properties systemProperties = new Properties();
+        systemProperties.setProperty("app.simulation.enabled", "true");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> RuntimePreflight.validate(production, systemProperties, new String[0]))
+                .withMessageContaining("must be false in production");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> RuntimePreflight.validate(
+                        production,
+                        new Properties(),
+                        new String[]{"--app.simulation.enabled=true"}
+                ))
+                .withMessageContaining("must be false in production");
+
         Map<String, String> staging = deployed("worker");
         staging.put("APP_ENV", "staging");
         staging.put("SPRING_PROFILES_ACTIVE", "staging");
