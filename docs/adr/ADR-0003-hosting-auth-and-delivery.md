@@ -1,34 +1,24 @@
-# ADR-0003 — Vercel + Northflank + Supabase ve Protected Main
+# ADR-0003 — Vercel + Railway + Supabase ve Protected Main
 
-**Status:** Accepted by HQ, 2026-10-21; amended by HQ, 2026-10-29.
+**Status:** Accepted by HQ, amended 2026-10-29.
 
 ## Context
 
-Her `main` merge hedef ortamda izlenebilir olmalı; JVM sürekli çalışan API/worker, tek seferlik schema migration, Vercel web ve Supabase DB/Auth farklı runtime/lifecycle gerektiriyor. Çoklu tenant ve yetki sınırı backend'de olmalı. Developer Sandbox kaynak sınırları nedeniyle API ve Worker iki sürekli service slotunun tamamını kullanır; staging için eşzamanlı ikinci API/Worker çifti varsayılamaz.
+JVM tabanlı API ve sürekli Worker, tek seferlik schema migration, Vercel web ve Supabase DB/Auth farklı runtime/lifecycle gerektiriyor. Multi-tenant ve yetki sınırı backend'de olmalı. Staging ile production servislerinin ve DB credentials'larının birbirinden ayrılması gerekiyor.
 
 ## Decision
 
-Next.js web Vercel'de; Java API ve Worker iki ayrı Northflank servisinde; PostgreSQL/Auth Supabase'te çalışır. API, Worker ve migration aynı immutable backend image/revision kullanır: `APP_MODE=api`, `worker`, `migrate`. Flyway yalnız explicit migration job'da çalışır; job başarıyla bitmeden API/Worker rollout yapılmaz.
-
-Tek GitHub monorepo ve required GitHub Actions CI kullanılır. PR preview production DB/API'ye erişemez veya sessiz fallback yapamaz. User identity Supabase Auth JWT'dir; permission/tenant kontrolü Spring backend'de kalır. FND-003 yalnız auth environment sözleşmesini hazırlar, JWT doğrulama/authorization IAM-001 kapsamındadır. Ticket ancak main merge, gerçek provider rollout, schema version ve smoke kanıtından sonra biter.
-
-Otomatik production gate, ayrı `workflow_run` bağlamı yerine aynı `main` push CI run'ında iki required check'i bekleyen `release-ready` job'udur. Job, GitHub check SHA, release SHA ve checkout SHA eşitliğini doğrular. Concurrency commit sırasını garanti etmediği için Northflank rollout öncesinde ve provider smoke sonrasında güncel GitHub main HEAD ayrıca doğrulanır; superseded revision fail-closed olur. Manuel recovery farklı `manual-release` check adı taşır, latest-main kısıtına tabi değildir ve Vercel production promotion kapısını açamaz; bu ayrım hızlı ardışık merge veya eski revision recovery sırasında yanlış commit'in yayınlanmasını engeller.
-
-### 2026-10-29 değişiklik kaydı
-
-ADR'nin 2026-10-21 sürümü Java API/Worker için Railway'i seçmişti. HQ, 2026-10-29'da aktif hosting hedefini Northflank olarak değiştirdi. Vercel, Supabase, protected main, ayrı sürekli API/Worker, explicit Flyway release step ve backend-authoritative auth sınırları değişmedi. Railway artık aktif karar değildir; sağlayıcı değişikliğinin karşılaştırmalı ürün gerekçesi ayrıca verilmediği için bu ADR yeni bir gerekçe uydurmaz.
-
-## Alternatives
-
-- Tüm backend'i Vercel Functions içine koymak: Java always-on worker/long-running API ihtiyacıyla uyumsuz, Vercel'in resmi runtime'ları arasında JVM yok.
-- Supabase Edge Functions ile bütün logic: rule SQL/evaluation için seçilen Java domain modelini çoğaltır.
-- Railway: 2026-10-21 kararında seçilmişti; 2026-10-29 HQ kararıyla Northflank tarafından supersede edildi.
-- AWS ECS/EKS/Kubernetes: ürün olgunlaştığında değerlendirilebilir; ilk iki ay operasyon maliyeti yüksek.
+- Frontend Next.js Vercel'de, backend Java API ve Worker Railway'de, PostgreSQL/Auth Supabase'te.
+- Railway staging project accomplished-vibrancy / environment staging mevcut API ve Worker servislerini içerir.
+- Production için ayrı Railway project kostak-fraud-production oluşturuldu; production environment henüz servissizdir. Staging service veya secret kopyalanmadı.
+- Supabase staging ve production ayrı projelerdir. Şu an yalnız staging Flyway V1 uygulanmıştır; production migration yapılmamıştır.
+- Backend runtime modes APP_MODE=api|worker|migrate; API/Worker startup Flyway çalıştırmaz. Production release ancak migration, readiness, exact SHA, Worker heartbeat ve Vercel promotion gate sırası gerçek ortamda doğrulanınca açılır.
+- Vercel frontend/vercel.json Git-triggered main deployments'ı kapatır; feature-branch Preview deploy'ları açık kalır.
+- GitHub release-ready ve manual-release workflows, Railway release orchestration tamamlanana kadar fail-closed olur. Eski Northflank runner devre dışıdır.
+- Supabase Auth JWT identity sağlar; membership ve permission kontrolü Spring backend'de kalır. IAM-001 signature/issuer/audience validation ve tenant-scoped authorization'ı uygular.
 
 ## Consequences
 
-Üç sağlayıcı, iki sürekli service ve migration/smoke job yönetimi; ağ gecikmesi, maliyet/kota ve secrets disiplini gerektirir. Northflank `europe-west`, Supabase bölgesi, IPv6/direct veya IPv4 session-pooler bağlantısı, küçük connection pool, migration sıra kontrolü ve gerçek smoke test doğrulanmalıdır. Bağımsız provider auto-deploy mekanizmaları migration'ı geçmeden rollout yapamayacak şekilde koordine edilir.
+Production ortamı daha fazla kurulum işi gerektirir; bu, staging credentials'larının production'a yanlışlıkla taşınmasını engeller. Production API/Worker, least-privilege DB role, TLS connection, migration sequencing ve live smoke tamamlanmadan yayınlanmaz. Akademik demo hosting'i ticari SLA veya compliance sertifikası sağlamaz.
 
-Developer Sandbox akademik canlı demo için başlangıç ortamıdır; ücretsiz plan erişimi, kaynak boyutu veya production uygunluğu gerçek hesapta doğrulanmadan taahhüt edilmez. Bu hosting kararı ticari SLA, compliance sertifikası veya finansal regülasyon uyumluluğu sağlamaz. Harici deployment henüz yapılmadığından repository hazırlığı `DEPLOYED` kanıtı değildir.
-
-**Implementation source:** [`../TECH_STACK.md`](../TECH_STACK.md), [`../ARCHITECTURE.md`](../ARCHITECTURE.md), [`../DEPLOYMENT_RUNBOOK.md`](../DEPLOYMENT_RUNBOOK.md).
+Implementation source: TECH_STACK.md, ARCHITECTURE.md, DEPLOYMENT_RUNBOOK.md.
