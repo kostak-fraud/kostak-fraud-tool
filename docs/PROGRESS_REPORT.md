@@ -1,40 +1,54 @@
-# UMDE / Bitirme Projesi — İlk Haftalık İlerleme Raporu Taslağı
+# UMDE / Bitirme Projesi — İlk Haftalık İlerleme Raporu (Güncel Taslak)
 
-**Dönem:** 21–28 Ekim 2026 (yaklaşık; Ömer'in gerçek rapor tarihi ayrıca doğrulanır).  
-**Durum:** Taslak. Teslim veya implementasyon tamamlandı iddiası içermez. 
+**Dönem:** 21–29 Ekim 2026.  
+**Durum:** Kanıtlarla güncellenmiş taslak; teslim öncesi akademik rapor formatına göre düzenlenmelidir.
 
 ## 1. Proje ve motivasyon
 
-Farklı ödeme işlem kanalları üzerinden akan sentetik olayların kural bazlı analiz edildiği, fraud operasyon ekibinin işlem inceleyebildiği ve kural yazabildiği kullanılabilir bir akademik platform tasarlanıyor. Akademik teslim öncelikli, gelecekte çoklu ödeme kuruluşuna hizmet verebilecek mimari sınırlar hedefleniyor.
+Farklı ödeme işlem kanalları üzerinden akan sentetik olayların kural bazlı analiz edildiği, fraud operasyon ekibinin işlem inceleyebildiği ve kural yazabildiği bir akademik platform geliştiriliyor. Akademik teslim öncelikli; gelecekte çoklu ödeme kuruluşuna hizmet verebilecek mimari sınırlar hedefleniyor. Veri modeli gerçek ödeme kuruluşu şeması değildir.
 
-## 2. Bugüne kadar tamamlanan **tasarım/hazırlık** işleri
+## 2. Tamamlanan tasarım ve geliştirme işleri
 
-- [x] Ürün modülleri, aktörler ve temel transaction lifecycle gereksinimleri yazılılaştırıldı.
-- [x] Analist tablosu, saved view, bulk action, detay ve edit lock davranışları belgelenmeye başlandı.
-- [x] No-code rule engine yetenekleri ve sentetik örnek kural tanımlandı.
-- [x] İlk tech stack / altyapı topolojisi, mimari ADR'ler ve test standardı seçildi.
-- [x] MVP önceliği ve dependency-based ticket planı oluşturuldu.
-- [ ] Repo iskeleti, başarılı CI, production deployment ve çalışan demo **gerçekleştirilirse** kanıtla işaretlenecek.
+- [x] Ürün modülleri, transaction lifecycle, analist tablosu, saved view, bulk action, detay ve edit-lock davranışları belgelendi.
+- [x] Rule engine gereksinimleri, sentetik örnek kurallar, veri sözlüğü, mimari ADR'ler ve dependency-based backlog oluşturuldu.
+- [x] FND-001: frontend/backend monorepo iskeleti tamamlandı.
+- [x] FND-002: GitHub Actions kalite kapıları ve protected-main akışı tamamlandı.
+- [x] UI-001: temel navigasyon ve kanal sekmeleri main'e alındı.
+- [x] IAM-001: Supabase JWT doğrulama, tenant membership ve role/permission modeli main'e alındı.
+- [x] TX-001: sentetik işlem şeması, Flyway V3 migration, kanal bazlı field registry ve filtre metadata endpoint'i main'e alındı.
+- [x] PostgreSQL 17/18 Testcontainers migration testleri, transaction schema constraints, idempotency, exact-decimal ve index-plan smoke testleri başarılı.
+- [x] Railway staging API ve Worker, aynı main revision bd3116a05895f73437bc673f8f5ca7cd9d2132a9 üzerinde Online (her biri 1/1 replica).
+- [x] Supabase staging kostak_fraud schema'sında Flyway V3 başarıyla uygulandı.
+- [x] Worker heartbeat aynı release SHA'yı ve db_status=UP durumunu doğruladı.
 
-## 3. Önerilen mimari özet
+## 3. Mimari ve ortam durumu
 
-Next.js 16 + TypeScript UI; Java 25 + Spring Boot 4.1.x modular monolith (API ve worker); PostgreSQL/Supabase; Vercel frontend, Railway API/worker; GitHub Actions kalite kapıları. Railway staging canlıdır; ayrı production Railway projesi henüz servissizdir. Deployment yalnız gerçek URL, revision ve smoke kanıtı üretildiğinde tamamlanmış raporlanır. Ayrıntılar `TECH_STACK.md`, `ARCHITECTURE.md` ve `DEPLOYMENT_RUNBOOK.md` dosyalarındadır.
+Next.js 16 + TypeScript UI; Java 25 + Spring Boot 4.1.x modular monolith (API ve Worker); Supabase PostgreSQL/Auth; Vercel frontend; Railway staging API/Worker; GitHub Actions CI.
 
-## 4. Üretilen artefaktlar
+- Repo: https://github.com/kostak-fraud/kostak-fraud-tool
+- TX-001 CI: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/40815370153
+- Railway staging API: https://kostak-fraud-staging.up.railway.app
+- Staging revision: bd3116a05895f73437bc673f8f5ca7cd9d2132a9
+- Staging Flyway schema version: 3
 
-- PRD, domain sözleşmesi, rule engine gereksinimleri, UX blueprint, sentetik veri sözlüğü.
-- Tech stack, ADR'ler, tenant/RBAC önerisi, delivery runbook.
-- Backlog/ticket kabul kriterleri ve ilk hafta planı.
-- Repo linki: **[gerçek URL buraya]**
-- CI çalışma kanıtı: **[run URL]**
-- Production web/API kanıtı: **[deploy URL / commit SHA / health]**
+**Sınırlar:** Railway provider readiness check başarılıdır; bağımsız public /actuator/info exact-SHA smoke mevcut executor ortamındaki DNS erişim sorunu nedeniyle doğrulanamadı. Ayrı Railway production projesi henüz boş; production migration, deployment ve promotion yapılmadı. Vercel main production auto-deploy ve GitHub production release workflows güvenlik amacıyla kapalıdır.
 
-## 5. Önümüzdeki iş paketleri
+## 4. Önümüzdeki iş paketleri
 
-1. İlk 1 hafta: FND-001, FND-002, koşullar uygunsa FND-003, UI-001.
-2. Sonraki haftalar: sentetik transaction ingestion/list/filter, rule engine + builder, investigation lock/actions, P0 E2E ve demo.
-3. Riskler: ana veri alanlarının henüz doğrulanmaması; kısa süre; hosting bütçesi ve izinler; rule aggregation ve eşzamanlı kilit doğruluğu.
+1. TX-002: seedli deterministic sentetik generator ve idempotent persistent ingestion.
+2. TX-003: tenant/channel-scoped işlem listeleme API'si, server-side pagination ve stabil newest-first sıralama.
+3. TX-004/TX-005: işlem grid'i, filtreleme ve detay rotası.
+4. RULE-001 → RULE-003: versioned rule schema, evaluator ve zamansal COUNT/SUM koşulları.
+5. INV-001 → INV-003: işlem detay incelemesi, atomik edit lease, kararlar, yorumlar ve audit.
+6. FND-003 production hazırlığı ayrı güvenlik/operasyon işi olarak devam eder; ürün geliştirmesini bloklamaz.
 
-## 6. Akademik rapor için dürüstlük notu
+## 5. Açık riskler
 
-Çalışan sistem, entegrasyon veya test sonucu **yalnızca gerçek repo/CI/prod kanıtı mevcutsa tamamlandı** denmeli. Bu belge ilk gün tasarım ilerlemesini raporlamaya uygundur; başarılmamış implementasyonu tamamlanmış gibi sunmak için kullanılmaz.
+- Sentetik alan sözlüğü tasarım varsayımıdır; gerçek kurum alan adları gelirse DATA-REVIEW gerekir.
+- Public HTTP /actuator/info exact-SHA smoke için DNS erişimli runner gerekir.
+- Production DB role/password, Railway production servisleri ve kontrollü release orchestration henüz kurulmamıştır.
+- Zamansal aggregate performansı ve eşzamanlı investigation lease davranışı sonraki testlerle kanıtlanmalıdır.
+
+## 6. Akademik dürüstlük notu
+
+Bu rapor staging'in çalıştığını ve TX-001'in test/merge/migration kanıtlarını ayırarak kaydeder. Production deployment, tam işlem API'si, generator, rule engine veya investigation akışları tamamlandı olarak sunulmamalıdır; bunlar ilgili ticket'ların kabul kriterleri geçtikçe işaretlenir.
