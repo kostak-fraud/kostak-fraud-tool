@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -237,6 +238,64 @@ class TransactionSchemaIntegrationTest {
     }
 
     @Test
+    void generatorPersistsSequenceMetadataAsJsonNumbers() throws SQLException {
+        long largeSequence = 1_000_000_000_001L;
+        try (Connection connection = connection();
+             PreparedStatement control = connection.prepareStatement("""
+                     INSERT INTO simulation_controls (tenant_id, enabled, rate_per_second, seed, next_sequence)
+                     VALUES (?, TRUE, 10, 42, 1)
+                     """)) {
+            control.setObject(1, TENANT_ID);
+            control.executeUpdate();
+        }
+
+        assertThat(generatorService().generateEnabledTransactions()).isEqualTo(10);
+
+        try (Connection connection = connection();
+             PreparedStatement control = connection.prepareStatement("""
+                     UPDATE simulation_controls
+                     SET rate_per_second = 1, next_sequence = ?
+                     WHERE tenant_id = ?
+                     """)) {
+            control.setLong(1, largeSequence);
+            control.setObject(2, TENANT_ID);
+            assertThat(control.executeUpdate()).isEqualTo(1);
+        }
+
+        assertThat(generatorService().generateEnabledTransactions()).isEqualTo(1);
+
+        long[] expectedSequences = {1L, 10L, largeSequence};
+        SyntheticTransactionFactory transactionFactory = new SyntheticTransactionFactory();
+        try (Connection connection = connection();
+             PreparedStatement query = connection.prepareStatement("""
+                     SELECT extra_data ->> 'scenario' AS scenario,
+                            jsonb_typeof(extra_data -> 'sequence') AS sequence_type,
+                            (extra_data ->> 'sequence')::bigint AS sequence
+                     FROM transactions
+                     WHERE tenant_id = ?
+                       AND (extra_data ->> 'sequence')::bigint IN (?, ?, ?)
+                     ORDER BY (extra_data ->> 'sequence')::bigint
+                     """)) {
+            query.setObject(1, TENANT_ID);
+            query.setLong(2, expectedSequences[0]);
+            query.setLong(3, expectedSequences[1]);
+            query.setLong(4, expectedSequences[2]);
+            try (ResultSet result = query.executeQuery()) {
+                for (long expectedSequence : expectedSequences) {
+                    assertThat(result.next()).isTrue();
+                    String expectedScenario = transactionFactory
+                            .create(TENANT_ID, 42L, expectedSequence, OCCURRED_AT)
+                            .riskScenario() ? "risk" : "normal";
+                    assertThat(result.getString("scenario")).isEqualTo(expectedScenario);
+                    assertThat(result.getString("sequence_type")).isEqualTo("number");
+                    assertThat(result.getLong("sequence")).isEqualTo(expectedSequence);
+                }
+                assertThat(result.next()).isFalse();
+            }
+        }
+    }
+
+    @Test
     void disabledGeneratorDoesNotCreateTransactionsAndRateLimitIsBounded() throws SQLException {
         try (Connection connection = connection();
              PreparedStatement control = connection.prepareStatement("""
@@ -268,7 +327,12 @@ class TransactionSchemaIntegrationTest {
         dataSource.setPassword(postgres.getPassword());
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
         TransactionTemplate transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        return new SimulationGeneratorService(jdbcTemplate, transactionTemplate, new SyntheticTransactionFactory());
+        return new SimulationGeneratorService(
+                jdbcTemplate,
+                transactionTemplate,
+                new SyntheticTransactionFactory(),
+                JsonMapper.builder().build()
+        );
     }
 
     private static void insertWallet(

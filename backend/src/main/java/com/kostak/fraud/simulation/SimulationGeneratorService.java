@@ -4,6 +4,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -11,6 +13,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -19,15 +22,18 @@ public class SimulationGeneratorService {
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
     private final SyntheticTransactionFactory transactionFactory;
+    private final ObjectMapper objectMapper;
 
     public SimulationGeneratorService(
             JdbcTemplate jdbcTemplate,
             TransactionTemplate transactionTemplate,
-            SyntheticTransactionFactory transactionFactory
+            SyntheticTransactionFactory transactionFactory,
+            ObjectMapper objectMapper
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = transactionTemplate;
         this.transactionFactory = transactionFactory;
+        this.objectMapper = objectMapper;
     }
 
     public int generateEnabledTransactions() {
@@ -72,7 +78,7 @@ public class SimulationGeneratorService {
                         sequence,
                         Instant.now()
                 );
-                int inserted = insert(transaction, tenantId);
+                int inserted = insert(transaction, tenantId, sequence);
                 if (inserted != 1) {
                     throw new IllegalStateException("Synthetic transaction idempotency conflict");
                 }
@@ -94,13 +100,8 @@ public class SimulationGeneratorService {
         return generated == null ? 0 : generated;
     }
 
-    private int insert(SyntheticTransaction transaction, UUID tenantId) {
-        String extraData = """
-                {"scenario":"%s","sequence":%s}
-                """.formatted(
-                transaction.riskScenario() ? "risk" : "normal",
-                transaction.idempotencyKey().substring(transaction.idempotencyKey().lastIndexOf('-') + 1)
-        );
+    private int insert(SyntheticTransaction transaction, UUID tenantId, long sequence) {
+        String extraData = serializeExtraData(transaction, sequence);
 
         PreparedStatementCreator statementCreator = connection -> {
             PreparedStatement statement = connection.prepareStatement("""
@@ -137,6 +138,17 @@ public class SimulationGeneratorService {
             return statement;
         };
         return jdbcTemplate.update(statementCreator);
+    }
+
+    private String serializeExtraData(SyntheticTransaction transaction, long sequence) {
+        try {
+            return objectMapper.writeValueAsString(Map.of(
+                    "scenario", transaction.riskScenario() ? "risk" : "normal",
+                    "sequence", sequence
+            ));
+        } catch (JacksonException exception) {
+            throw new IllegalStateException("Could not serialize synthetic transaction metadata", exception);
+        }
     }
 
     private static void setNullableString(PreparedStatement statement, int index, String value) throws SQLException {
