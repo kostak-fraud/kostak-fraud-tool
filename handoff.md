@@ -9,8 +9,8 @@
 - Base SHA: `9cc5eb38c76f8b639e834b60a8b2c46f3430f6c8`
 - Executor tarafından incelenen başlangıç HEAD'i: `ab2fbee8157cd564d454e83480e01e2f458bee84`
 - Finding fix implementation commit'i: `c1a377bf07529afd4e3191fb4fc73ac8feca05d8`
-- Final implementation ve CI/Preview kanıt subject SHA'sı: `c1a377bf07529afd4e3191fb4fc73ac8feca05d8`
-- Handoff kanıt güncellemesi bu SHA'dan sonra gelen yalnız-belge commit'idir; uygulama kodunu değiştirmez.
+- Executor'ın doğruladığı final branch HEAD'i: `9ded7dc7bb1b2785945dc0153e504353bf29d116`
+- Final branch HEAD, implementation commit'inden sonra gelen yalnız-handoff commit'ini de içerir; uygulama kodunda ek değişiklik yoktur.
 - Worker `main`e merge yapmadı; production/staging verisine, environment değişkenlerine veya secret'lara dokunmadı.
 
 ## Finding düzeltmesi
@@ -53,9 +53,9 @@ Ek hedefli doğrulama:
 - `pnpm vitest run components/authenticated-workspace.test.tsx --pool=threads --maxWorkers=1`: PASS — 1 dosya, 6 test.
 - `git diff --check`: PASS.
 
-## CI ve Preview kanıtı
+## Implementation commit CI ve Preview kanıtı
 
-Bu bölümdeki tüm sonuçlar aynı subject SHA'ya aittir. Önceki commitlere ait run/deployment kayıtları final kanıt olarak kullanılmamıştır.
+Bu bölüm yalnız finding fix implementation commit'ine aittir ve final branch HEAD kanıtı olarak sunulmaz.
 
 - Kanıt subject SHA: `c1a377bf07529afd4e3191fb4fc73ac8feca05d8`
 - GitHub Actions run: `40828812009`
@@ -67,6 +67,20 @@ Bu bölümdeki tüm sonuçlar aynı subject SHA'ya aittir. Önceki commitlere ai
 - Preview URL: `https://kostak-fraud-tool-git-feat-iam-00-b60ccd-omer-akkiyals-projects.vercel.app`
 - Vercel bot status: `Ready`, güncelleme zamanı `2026-10-29T06:22:58Z`
 
+## Final branch HEAD CI ve Preview kanıtı
+
+Bu bölümdeki CI ve Preview sonuçlarının tamamı aynı final branch HEAD SHA'sına aittir; implementation commit kanıtından ayrı tutulmuştur.
+
+- Final branch HEAD SHA: `9ded7dc7bb1b2785945dc0153e504353bf29d116`
+- GitHub Actions run: `40829045094`
+  - `frontend-ci`: PASS — 48 s — job `123298731754`
+  - `backend-ci`: PASS — 1 m 48 s — job `123298731969`
+  - `release-ready`: SKIPPED — mevcut fail-closed production policy; deployment/merge yapılmadı
+- Vercel commit status: SUCCESS — `Deployment has completed` — subject SHA `9ded7dc7bb1b2785945dc0153e504353bf29d116`
+- Vercel deployment: `https://vercel.com/omer-akkiyals-projects/kostak-fraud-tool/BnWUWFJgmbFdM6c1XrWy3KqcJ2cm`
+- Preview URL: `https://kostak-fraud-tool-git-feat-iam-00-b60ccd-omer-akkiyals-projects.vercel.app`
+- Vercel bot status: `Ready`, güncelleme zamanı `2026-10-29T06:25:11Z`
+
 ## Ortam ve canlı doğrulama
 
 - Vercel Preview için gerekli publishable key veya staging test üyeliği bu ticket kapsamında oluşturulmadı/değiştirilmedi.
@@ -77,4 +91,4 @@ Bu bölümdeki tüm sonuçlar aynı subject SHA'ya aittir. Önceki commitlere ai
 
 ## Executor yeniden inceleme notu
 
-Executor'ın diff'i, sayfa permission presentation davranışını, membership `403` regresyonunu ve bu belgede tek SHA'ya bağlanan `frontend-ci`, `backend-ci` ve Vercel Preview kanıtlarını yeniden kontrol etmesi beklenir. PR draft olarak bırakılmıştır; merge/deploy/migration yapılmamıştır.
+Executor'ın diff'i, sayfa permission presentation davranışını, membership `403` regresyonunu ve ayrı başlıklarda SHA'ya bağlanan implementation/final-HEAD kanıtlarını yeniden kontrol etmesi beklenir. PR draft olarak bırakılmıştır; merge/deploy/migration yapılmamıştır.
