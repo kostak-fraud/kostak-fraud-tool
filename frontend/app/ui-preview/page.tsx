@@ -25,8 +25,6 @@ export default function UiPreviewPage() {
         <ErrorState
           title="Transactions could not be loaded"
           description="The service may be temporarily unavailable. Retry after checking the connection."
-          actionLabel="Retry example"
-          onAction={() => undefined}
         />
         <ForbiddenState
           title="You do not have access to Rules"
