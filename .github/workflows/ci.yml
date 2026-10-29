@@ -78,3 +78,17 @@ jobs:
       - name: Verify backend
         working-directory: backend
         run: ./mvnw -B verify
+
+      - name: Build and inspect backend runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="kostak-backend:${GITHUB_SHA}"
+          docker build --tag "$image" backend
+
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "10001:10001"
+          docker run --rm --entrypoint /app/worker-healthcheck.sh --env APP_MODE=api "$image"
+          if docker run --rm --entrypoint /app/worker-healthcheck.sh --env APP_MODE=worker "$image"; then
+            echo "::error::Worker healthcheck accepted a missing heartbeat file."
+            exit 1
+          fi

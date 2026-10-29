@@ -35,6 +35,4 @@ EXPOSE 8080
 # Container-aware JVM ergonomics cap heap below the service memory limit. Override only through provider runtime configuration.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=25 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/urandom"
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD ["/app/worker-healthcheck.sh"]
-
 ENTRYPOINT ["java", "-jar", "/app/application.jar"]

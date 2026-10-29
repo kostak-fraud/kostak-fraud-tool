@@ -167,7 +167,7 @@ Java 25 base tag'i gerçek build ile doğrulanır. Build secret image layer'ına
 - Image: API ile aynı exact revision.
 - Runtime: image entrypoint; `APP_MODE=worker`, `SPRING_FLYWAY_ENABLED=false`.
 - Public port açılmaz. Internal health HTTP uygulanırsa yalnız private/internal port kullanılır.
-- Process'in çalışması, DB connectivity durumu ve birkaç heartbeat döngüsü log/metric ile doğrulanır. Image healthcheck'i heartbeat dosyasının düzenli, symlink olmayan, `db_status=UP` içeren ve `APP_WORKER_HEARTBEAT_MAX_AGE_SECONDS` sınırından yeni olmasını ister; path yazılabilir olmalıdır.
+- Process'in çalışması, DB connectivity durumu ve birkaç heartbeat döngüsü log/metric ile doğrulanır. Worker service/Compose healthcheck'i image içindeki `/app/worker-healthcheck.sh` komutunu kullanır; dosyanın düzenli, symlink olmayan, `db_status=UP` içeren ve `APP_WORKER_HEARTBEAT_MAX_AGE_SECONDS` sınırından yeni olmasını ister. Aynı image API/Migration için de kullanıldığından global Dockerfile healthcheck tanımlanmaz; API'nin HTTP probe'ları provider'da ayrıca ayarlanır.
 - SIGTERM gönderildiğinde graceful shutdown logu ve temiz exit gözlenir.
 
 **Migration job**
