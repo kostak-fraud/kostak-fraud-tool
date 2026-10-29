@@ -1,118 +1,80 @@
 # IAM-002 Worker Handoff
 
-## Kimlik
+## Kimlik ve kapsam
 
 - Ticket: `IAM-002 — Frontend Supabase Auth ve Authenticated API Client`
+- Executor finding fix: sayfa bazlı permission kontrolü ve kanıtların SHA bazında ayrıştırılması
 - Branch: `feat/iam-002-frontend-auth`
+- Base: `main`
 - Base SHA: `9cc5eb38c76f8b639e834b60a8b2c46f3430f6c8`
-- Final implementation SHA: `f8c93c662639afe0ae9d21013960d62d9c0ead1a`
-- Hedef: `main`
-- Worker production'a veya staging verisine dokunmadı; main'e merge yapmadı.
+- Executor tarafından incelenen başlangıç HEAD'i: `ab2fbee8157cd564d454e83480e01e2f458bee84`
+- Finding fix implementation commit'i: `c1a377bf07529afd4e3191fb4fc73ac8feca05d8`
+- Final implementation ve CI/Preview kanıt subject SHA'sı: `c1a377bf07529afd4e3191fb4fc73ac8feca05d8`
+- Handoff kanıt güncellemesi bu SHA'dan sonra gelen yalnız-belge commit'idir; uygulama kodunu değiştirmez.
+- Worker `main`e merge yapmadı; production/staging verisine, environment değişkenlerine veya secret'lara dokunmadı.
 
-## Uygulama özeti ve değişen alanlar
+## Finding düzeltmesi
 
-- `frontend/lib/supabase/` altında cookie tabanlı browser/server client'ları ve Next.js 16 session refresh/route guard akışı eklendi.
-- `frontend/proxy.ts`, `/login`, `/transactions` ve `/rules` isteklerinde doğrulanmış `getClaims()` sonucu kullanıyor. Cookie içindeki session tek başına kimlik kanıtı kabul edilmiyor.
-- `frontend/app/login/` ve `frontend/components/login-form.tsx` e-posta/parola `signInWithPassword` akışını, erişilebilir form durumlarını ve güvenli local return-to davranışını sağlıyor.
-- `frontend/components/authenticated-workspace.tsx`, mevcut session'ı geri yüklüyor, `GET /api/v1/identity/me` çağrısını yapıyor ve loading/configuration/membership/permission/network durumlarını ayırıyor.
-- `frontend/lib/api/client.ts`, yalnız `NEXT_PUBLIC_API_BASE_URL` kullanan bearer-token API client'ı ekliyor. `401` için tek refresh/retry, tekrarlanan `401` için sign-out ve `403` için session koruması var.
-- `frontend/lib/api/identity.ts`, backend identity response'unu typed Zod sözleşmesiyle doğruluyor.
-- `AppShell`, backend'den gelen permission'lara göre navigasyon sunuyor ve desktop/mobile görünür logout kontrolü içeriyor; mevcut genel yerleşim korunuyor.
-- `backlog/IAM-002.md` oluşturuldu; `backlog/INDEX.md` ve `backlog/TX-004.md` auth → grid bağımlılığıyla güncellendi.
-- Auth, route, API client, session restoration, logout, configuration ve secret-redaction sınırları için izole Vitest/Testing Library testleri eklendi.
+- `frontend/components/authenticated-workspace.tsx`
+  - `transactions` sayfası için `transactions.read`, `rules` sayfası için `rules.read` gereksinimi tanımlandı.
+  - Backend identity başarıyla yüklendikten sonra aktif sayfa permission'ı yoksa protected `children` render edilmiyor.
+  - Mevcut `AppShell` içinde anlaşılır `ForbiddenState` gösteriliyor; session aktif kalıyor ve logout erişilebilir olmaya devam ediyor.
+  - Sidebar'ın backend permission'larına göre filtrelenmesi korundu.
+  - Bu kontrol yalnız UI/content presentation katmanıdır; backend authorization authoritative kalır.
+- `frontend/components/authenticated-workspace.test.tsx`
+  - Yalnız `transactions.read` olan identity'nin `/rules` içeriğini göremediği doğrulandı.
+  - Yalnız `rules.read` olan identity'nin `/transactions` içeriğini göremediği doğrulandı.
+  - Gerekli permission'a sahip identity'nin aktif sayfa içeriğini görebildiği doğrulandı.
+  - Permission eksikliğinin `signOut` veya login redirect tetiklemediği; logout kontrolünün erişilebilir kaldığı doğrulandı.
+  - Mevcut membership `403` davranışı korunarak test suite içinde geçmeye devam etti.
 
-## Kabul kriteri kanıtı
+## Değişen dosyalar
 
-### Supabase Auth ve session
+- `frontend/components/authenticated-workspace.tsx`
+- `frontend/components/authenticated-workspace.test.tsx`
+- `handoff.md`
 
-- `@supabase/ssr@0.12.7` ve `@supabase/supabase-js@2.118.0` tam sürümle sabitlendi; lockfile commit edildi.
-- Login `signInWithPassword`; logout `signOut`; browser session `getSession` ile geri yükleniyor.
-- Server client async Next.js `cookies()` API'sini kullanıyor. Proxy token refresh cookie'lerini hem request'e hem response'a taşıyor.
-- Server route guard ve protected page doğrulaması `getClaims()` kullanıyor; server tarafında `getSession()` kimlik kanıtı yapılmadı.
+Backend, migration, environment, secret, backlog veya ilgisiz ürün alanında değişiklik yapılmadı.
 
-### Route ve UX durumları
-
-- Proxy testleri session'sız protected route'un login'e yönlendiğini ve authenticated login isteğinin yalnız güvenli local path'e döndüğünü kanıtlıyor.
-- `https://...`, `//...`, `/\\...` ve `javascript:` return-to örnekleri reddediliyor.
-- Protected içerik, browser session ve backend identity yüklenene kadar render edilmiyor; sahte tenant/role/user yok.
-- Identity `403` login hatası değildir ve logout tetiklemez; ayrı tenant membership durumu gösterilir.
-- Login formu label, autocomplete, required, disabled/pending ve güvenli hata metinlerine sahiptir; pending iken tekrar gönderim kapalıdır.
-
-### API client ve identity
-
-- Access token yalnız `Authorization: Bearer <token>` header'ına yazılıyor.
-- Base URL eksik/geçersiz olduğunda import-time crash veya environment fallback yok; çağrı anında typed configuration error üretiliyor.
-- Boş response, non-JSON success response, network error, `401`, `403` ve server hata durumları deterministik ele alınıyor.
-- `401` en fazla bir `refreshSession` ve retry yapıyor. İkinci `401` sign-out yapıyor; `403` refresh/sign-out yapmıyor.
-- Identity alanları `userId`, `membershipId`, `tenantId`, `tenantName`, `roles`, `permissions` olarak runtime'da doğrulanıyor. UI tenant/role verisi backend response'u olmadan üretmiyor.
-
-### Güvenlik
-
-- `service_role`, secret key, DB credential veya gerçek kullanıcı verisi eklenmedi.
-- Token query parametresine veya loglara yazılmıyor; üretim kodunda auth/API error logu yok. Test, token değerinin `console.log/error` çağrısına gitmediğini doğruluyor.
-- Client tenant ID göndermiyor ve Supabase PostgreSQL tablolarına doğrudan erişmiyor.
-- Permission tabanlı navigasyon yalnız UI sunumu içindir; backend authorization authoritative kalır.
-
-## Çalıştırılan kontroller
+## Lokal doğrulama
 
 `frontend/` altında Node `v24.20.0`, pnpm `11.24.0` ile:
 
 | Komut | Gerçek sonuç |
 |---|---|
-| `pnpm install --frozen-lockfile` | PASS — lockfile güncel, 378 ms |
+| `pnpm install --frozen-lockfile` | PASS — lockfile güncel, 364 ms |
 | `pnpm lint` | PASS — ESLint hata/uyarı yok |
 | `pnpm typecheck` | PASS — `tsc --noEmit` |
-| `pnpm test` | PASS — 9 dosya, 32 test |
+| `pnpm test` | PASS — 9 dosya, 35 test, 5.18 s |
 | `pnpm build` | PASS — Next.js 16.4.2 production build |
 
-PR `#15` GitHub run `40827732416`:
+Ek hedefli doğrulama:
 
-- `frontend-ci`: PASS (58 s)
-- `backend-ci`: PASS (1 m 31 s)
-- Vercel: PASS / deployment ready
-- `release-ready`: SKIPPED, mevcut fail-closed production policy ile uyumlu
+- `pnpm vitest run components/authenticated-workspace.test.tsx --pool=threads --maxWorkers=1`: PASS — 1 dosya, 6 test.
+- `git diff --check`: PASS.
 
-Ek lokal missing-config smoke:
+## CI ve Preview kanıtı
 
-- `GET /transactions?channel=wallet` → `307 /login?configuration=missing&next=%2Ftransactions%3Fchannel%3Dwallet`
-- `GET /login?configuration=missing` → `200`, görünür `Sign-in configuration is missing` durumu
+Bu bölümdeki tüm sonuçlar aynı subject SHA'ya aittir. Önceki commitlere ait run/deployment kayıtları final kanıt olarak kullanılmamıştır.
 
-İlk toplu test denemesinde test router mock'unun her render'da yeni nesne üretmesi nedeniyle bir Vitest worker OOM oldu (29 test geçmişti). Mock sabit nesneye çevrildi; ardından tam suite iki kez `32/32 PASS` oldu. Ürün kodunda OOM gözlenmedi.
+- Kanıt subject SHA: `c1a377bf07529afd4e3191fb4fc73ac8feca05d8`
+- GitHub Actions run: `40828812009`
+  - `frontend-ci`: PASS — 40 s — job `123297985998`
+  - `backend-ci`: PASS — 1 m 38 s — job `123297985658`
+  - `release-ready`: SKIPPED — mevcut fail-closed production policy; deployment/merge yapılmadı
+- Vercel commit status: SUCCESS — `Deployment has completed` — subject SHA `c1a377bf07529afd4e3191fb4fc73ac8feca05d8`
+- Vercel deployment: `https://vercel.com/omer-akkiyals-projects/kostak-fraud-tool/7fdrefGAZRWpFRVP9GtBBjvskVb4`
+- Preview URL: `https://kostak-fraud-tool-git-feat-iam-00-b60ccd-omer-akkiyals-projects.vercel.app`
+- Vercel bot status: `Ready`, güncelleme zamanı `2026-10-29T06:22:58Z`
 
-## İncelenen belgeler
+## Ortam ve canlı doğrulama
 
-Repo: `AGENTS.md`, `README.md`, `frontend/AGENTS.md`, istenen IAM/TX backlog dosyaları, `ARCHITECTURE.md`, `RBAC.md`, `UX.md`, `TECH_STACK.md`, `DEPLOYMENT_RUNBOOK.md`, `DELIVERY.md`, `DECISIONS.md`, ADR-0003.
+- Vercel Preview için gerekli publishable key veya staging test üyeliği bu ticket kapsamında oluşturulmadı/değiştirilmedi.
+- Vercel deployment'ın `READY` olması gerçek login akışının başarılı olduğu anlamına gelmez.
+- Gerçek staging `login → identity` success path: **UNVERIFIED**.
+- Staging'de kullanıcı, tenant, membership, transaction veya başka test verisi oluşturulmadı.
+- Public sign-up, password reset, invite, tenant provisioning/selection ve user management kapsam dışıdır.
 
-Kurulu Next.js `16.4.2` yerel belgeleri:
+## Executor yeniden inceleme notu
 
-- `node_modules/next/dist/docs/01-app/02-guides/authentication.md`
-- `node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md`
-- `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`
-- `node_modules/next/dist/docs/01-app/03-api-reference/04-functions/cookies.md`
-- `node_modules/next/dist/docs/01-app/02-guides/environment-variables.md`
-
-Güncel resmî Next.js authentication/proxy ve Supabase SSR client/changelog sayfaları da kontrol edildi. Next.js 16 `proxy.ts`, async cookies ve Supabase `getClaims()` yaklaşımı uygulandı.
-
-## Ortam, canlı doğrulama ve drift
-
-- Vercel Preview'da `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` eksik. Worker bunu tahmin etmedi, repository'ye veya Vercel'e yazmadı.
-- Preflight bilgisindeki staging durumuna göre Auth user `0`, tenant `0`, membership `0`, aktif membership `0`, transaction `0`.
-- Bu nedenle gerçek staging `login → identity` başarı smoke'u yapılmadı: **UNVERIFIED**.
-- Staging'de test user, tenant, membership veya transaction oluşturulmadı.
-- Preview deployment: `https://kostak-fraud-tool-git-feat-iam-00-b60ccd-omer-akkiyals-projects.vercel.app` at `d43e078aa6c2b3bbd0315a8cef2f702ff8774c67`; Vercel check PASS. Doğrudan HTTP isteği Vercel koruma kabuğunu döndürdüğü için uygulama içi login smoke'u manuel olarak doğrulanmadı.
-- Güncel Railway staging API domain'i promptta `https://kostak-fraud-staging.up.railway.app`; `docs/DEPLOYMENT_RUNBOOK.md` hâlâ `https://kostak-fraud-tool-production.up.railway.app` yazıyor. Ticket sınırı gereği runbook değiştirilmedi.
-- `backlog/IAM-001.md` `REVIEW`, `backlog/TX-003.md` `PLANNED` gösterirken main kodunda backend identity/transaction list implementasyonları bulunduğu yönündeki statü drift'i not edildi; kapsam dışı status düzeltmesi yapılmadı.
-
-## Manuel doğrulama
-
-1. Vercel Preview'a doğru staging publishable key güvenli environment ayarı olarak eklenmeli.
-2. Ayrı Executor/onaylı provisioning ticket'ında sentetik staging Auth user + tek aktif tenant membership hazırlanmalı; secret handoff/PR'a yazılmamalı.
-3. Login, refresh, identity tenant/role görünümü, permission nav, logout ve expired-session yönlendirmesi Preview'da manuel smoke edilmeli.
-4. Membership olmayan geçerli Auth user ile `403` ekranının session'ı kapatmadığı doğrulanmalı.
-5. Executor diff/security review ve GitHub `frontend-ci`/`backend-ci` sonuçlarını kontrol etmeli; ardından merge/deploy kararı vermeli.
-
-## Bilinen sınırlar
-
-- Canlı staging success path ve Vercel Preview, eksik publishable key ve staging kimlik/membership verisi nedeniyle doğrulanmadı.
-- Public sign-up, password reset, invite, tenant selection/provisioning ve user management bilerek yoktur.
-- Backend/migration/RLS değişikliği yapılmadı.
+Executor'ın diff'i, sayfa permission presentation davranışını, membership `403` regresyonunu ve bu belgede tek SHA'ya bağlanan `frontend-ci`, `backend-ci` ve Vercel Preview kanıtlarını yeniden kontrol etmesi beklenir. PR draft olarak bırakılmıştır; merge/deploy/migration yapılmamıştır.
