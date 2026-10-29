@@ -35,7 +35,8 @@ jobs:
 
       - name: Validate release gate scripts
         run: |
-          node --check scripts/release/run-northflank-workflow.mjs
+          node --check scripts/release/verify-api-release.mjs
+          node --check scripts/release/verify-latest-main.mjs
           node --test scripts/release/*.test.mjs
           sh backend/worker-healthcheck.test.sh
 
