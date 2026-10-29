@@ -19,10 +19,11 @@
 | [FND-003](FND-003.md) | Foundation | P0 | M | FND-001, FND-002 | Vercel web, Railway API/worker, explicit migration, Supabase DB/Auth ve main sonrası smoke hazırlığı kur |
 | [UI-001](UI-001.md) | UI Foundation | P0 | M | FND-001 | Kullanılabilir sol navigasyon, channel tabs ve ortak component/tasarım token temelini kur |
 | [IAM-001](IAM-001.md) | Security | P0 | M | FND-001 | Tenant, kullanıcı üyeliği, izin modeli ve Supabase Auth JWT doğrulamasını backend’e entegre et |
+| [IAM-002](IAM-002.md) | Security | P0 | M | IAM-001, UI-001 | Frontend Supabase Auth session akışı ve access token taşıyan ortak API client oluştur |
 | [TX-001](TX-001.md) | Transactions | P0 | M | FND-001, IAM-001 | Mock transaction kalıcı şema, Flyway migration ve indekslenebilir alan sözlüğü uygula |
 | [TX-002](TX-002.md) | Transactions | P0 | M | TX-001 | Gerçek zamanlı sentetik generator ve idempotent persistent ingestion kur |
 | [TX-003](TX-003.md) | Transactions | P0 | M | TX-001, IAM-001 | Kanal bazlı transaction list REST API sunucu sayfalama ve yeni→eski stabil sıralamayı sağla |
-| [TX-004](TX-004.md) | Transactions UI | P0 | M | TX-003, UI-001 | Kanala göre dense transaction grid, stable pagination ve row→detail navigation iskeleti kur |
+| [TX-004](TX-004.md) | Transactions UI | P0 | M | TX-003, UI-001, IAM-002 | Kanala göre dense transaction grid, stable pagination ve row→detail navigation iskeleti kur |
 | [TX-005](TX-005.md) | Transactions | P0 | M | TX-003, TX-004 | Kolon tipi bazlı server-side çoklu filtreleri API ve UI üzerinden işlevsel hale getir |
 | [TX-006](TX-006.md) | Transactions UI | P0 | M | TX-005, IAM-001 | Kullanıcı+tenant+channel özel tek saved default view ve kolon drag/drop sağla |
 | [RULE-001](RULE-001.md) | Rules | P0 | M | TX-001, IAM-001 | Typed versioned rule AST doğrulama, DB şeması ve CRUD/publish/disable API tasarla |
@@ -44,7 +45,7 @@
 ## Kritik yollar ve çalışma paketleri
 
 1. **Altyapı:** `FND-001 → FND-002 → FND-003`; UI iskeleti `UI-001` FND-001 sonrasında paralel olabilir.
-2. **Demo veri/list:** `IAM-001 → TX-001 → TX-002/TX-003 → TX-004 → TX-005 → TX-006`.
+2. **Demo veri/list:** `IAM-001 → IAM-002`; backend veri yolu `TX-001 → TX-002/TX-003`, ardından authenticated frontend bağımlılığıyla `IAM-002 + TX-003 + UI-001 → TX-004 → TX-005 → TX-006`.
 3. **Rule engine:** `TX-001 → RULE-001 → RULE-002 → RULE-003 → RULE-006`; `RULE-005` UI-001 sonrasında RULE-001'le paralel geliştirilebilir.
 4. **İnceleme:** `TX-004 + RULE-002 → INV-001 → INV-002 → INV-003 → TX-007`.
 5. **Kapanış:** `OPS-002` güvenlik/perf → `DEMO-001`. P1 işler (`RULE-004`, `OPS-001`, `RUL-007`, `ADM-001`) P0'a zarar vermeyecek şekilde alınır.
