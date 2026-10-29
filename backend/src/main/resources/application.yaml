@@ -11,8 +11,8 @@ spring:
       connection-timeout: 5000
       validation-timeout: 3000
       initialization-fail-timeout: 10000
+      schema: ${SPRING_FLYWAY_DEFAULT_SCHEMA:public}
   flyway:
-    # KostakApplication overrides this with an authoritative per-mode value.
     enabled: false
     clean-disabled: true
     validate-on-migrate: true
@@ -29,6 +29,10 @@ app:
   release-sha: ${APP_RELEASE_SHA:local-development}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
+  auth:
+    jwks-url: ${SUPABASE_JWKS_URL:https://example.invalid/auth/v1/.well-known/jwks.json}
+    issuer: ${SUPABASE_JWT_ISSUER:https://example.invalid/auth/v1}
+    audience: ${SUPABASE_JWT_AUDIENCE:authenticated}
   worker:
     heartbeat-interval: ${APP_WORKER_HEARTBEAT_INTERVAL:30s}
     heartbeat-file: ${APP_WORKER_HEARTBEAT_FILE:/tmp/kostak-worker-heartbeat}
