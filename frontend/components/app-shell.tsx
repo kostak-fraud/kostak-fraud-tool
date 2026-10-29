@@ -7,12 +7,27 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  LogOut,
   ShieldCheck,
 } from "lucide-react";
 
+import type { IdentityContext } from "@/lib/api/identity";
+
 const navigation = [
-  { key: "transactions", label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
-  { key: "rules", label: "Rules", href: "/rules", icon: BookOpen },
+  {
+    key: "transactions",
+    label: "Transactions",
+    href: "/transactions",
+    icon: ArrowLeftRight,
+    permission: "transactions.read",
+  },
+  {
+    key: "rules",
+    label: "Rules",
+    href: "/rules",
+    icon: BookOpen,
+    permission: "rules.read",
+  },
 ] as const;
 
 type NavigationKey = (typeof navigation)[number]["key"];
@@ -22,6 +37,10 @@ type AppShellProps = {
   pageTitle: string;
   pageDescription: string;
   children: ReactNode;
+  identity?: IdentityContext;
+  navigationPermissions?: readonly string[];
+  onLogout?: () => void;
+  loggingOut?: boolean;
 };
 
 export function AppShell({
@@ -29,8 +48,15 @@ export function AppShell({
   pageTitle,
   pageDescription,
   children,
+  identity,
+  navigationPermissions,
+  onLogout,
+  loggingOut = false,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const visibleNavigation = navigation.filter(
+    (item) => !navigationPermissions || navigationPermissions.includes(item.permission),
+  );
 
   return (
     <div
@@ -96,7 +122,7 @@ export function AppShell({
 
         <nav aria-label="Primary navigation" className="mt-3" id="primary-navigation">
           <ul className="grid gap-1.5">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const Icon = item.icon;
               const active = activePage === item.key;
 
@@ -125,12 +151,32 @@ export function AppShell({
           </ul>
         </nav>
 
-        {!collapsed && (
-          <div className="mt-auto hidden border-t border-[var(--border)] pt-5 text-xs leading-5 text-[var(--text-secondary)] lg:block">
-            Analyst workspace
-            <p className="mt-1">Review activity across payment channels.</p>
-          </div>
-        )}
+        <div className="mt-5 border-t border-[var(--border)] pt-5 lg:mt-auto">
+          {!collapsed && identity && (
+            <div className="mb-4 text-xs leading-5 text-[var(--text-secondary)]">
+              <p className="font-semibold text-[var(--text-primary)]">{identity.tenantName}</p>
+              <p>{identity.roles.join(", ") || "Assigned member"}</p>
+            </div>
+          )}
+          {onLogout && (
+            <button
+              aria-label="Log out"
+              className={[
+                "flex min-h-11 w-full items-center gap-3 rounded-[var(--radius)] px-3 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]",
+                collapsed ? "justify-center px-0" : "",
+              ].join(" ")}
+              disabled={loggingOut}
+              onClick={onLogout}
+              title={collapsed ? "Log out" : undefined}
+              type="button"
+            >
+              <LogOut aria-hidden="true" className="size-5 shrink-0" />
+              <span className={collapsed ? "sr-only" : ""}>
+                {loggingOut ? "Logging out…" : "Log out"}
+              </span>
+            </button>
+          )}
+        </div>
       </aside>
 
       <main className="min-w-0 px-4 py-6 sm:px-8 lg:px-10 lg:py-8" id="main-content">
