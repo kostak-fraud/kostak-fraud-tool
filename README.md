@@ -18,6 +18,7 @@
 | Ekran ve kullanılabilirlik sözleşmesi | [`docs/UX.md`](docs/UX.md) |
 | Somut UI şemaları, component/token ve manuel UX testi | [`docs/UI_BLUEPRINT.md`](docs/UI_BLUEPRINT.md) |
 | Önerilen mock transaction alanları | [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md) |
+| Transaction list API sözleşmesi ve sayfalama | [`docs/TRANSACTION_LIST_API.md`](docs/TRANSACTION_LIST_API.md) |
 | Kural yürütme zaman/aggregate semantiği varsayımları | [`docs/ENGINE_SEMANTICS.md`](docs/ENGINE_SEMANTICS.md) |
 | RBAC izin matrisi / tenant erişimi | [`docs/RBAC.md`](docs/RBAC.md) |
 | Executor → Worker → Executor, CI/CD ve kalite kapıları | [`docs/DELIVERY.md`](docs/DELIVERY.md) |
