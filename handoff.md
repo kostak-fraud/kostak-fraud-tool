@@ -36,3 +36,51 @@
 - PR #8 — disable Vercel automatic production deploys from main: merged as 001e77b4fb5e3c5ad9542b0373749d177a4e65a6
 - UI-001 PR #7 — accessible app shell and channel navigation: merged as ec076b6e42e4bb200ce923c11035790989d447a8
 - FND-003 tracking issue: https://github.com/kostak-fraud/kostak-fraud-tool/issues/6
+
+---
+
+# TX-002 Handoff — JSON sequence serialization regression fix
+
+**Updated:** 2026-10-29
+**Ticket:** TX-002
+**Pull request:** https://github.com/kostak-fraud/kostak-fraud-tool/pull/13
+**Starting HEAD:** `5948b397641f7751d63cf3ea683bb2fe7dbebb96`
+**Implementation commit:** `094ff344bbff8a3f7cdf6177f02cec3a3175176e`
+
+## Root cause and fix
+
+- `SimulationGeneratorService.insert()` manually interpolated the zero-padded suffix of the idempotency key into JSON. Values such as `000000000001` are not valid JSON numbers, so PostgreSQL rejected the `CAST(? AS jsonb)` operation.
+- The generator now passes its existing `long sequence` directly to `insert()` and serializes `scenario` plus `sequence` with the Jackson 3 `ObjectMapper` already provided by the Spring Boot web dependency.
+- `sequence` remains a JSON number, while scenario values and stable idempotency key formatting remain unchanged. No dependency was added.
+
+## Changed files
+
+- `backend/src/main/java/com/kostak/fraud/simulation/SimulationGeneratorService.java`: replaces manual JSON construction with Jackson serialization of the real numeric sequence.
+- `backend/src/test/java/com/kostak/fraud/transactions/TransactionSchemaIntegrationTest.java`: wires the serializer in the direct service fixture and adds persistence-path assertions for sequences `1`, `10`, and `1000000000001`, JSON number type, and deterministic scenario values. The existing restart-continuity integration test remains intact.
+- `handoff.md`: preserves the FND-003 handoff above and adds this TX-002 Worker record.
+
+## Validation performed
+
+- Active machine JDK preflight: the configured JDK was Java 17. The initial focused command `\.\mvnw.cmd -B -Dtest=TransactionSchemaIntegrationTest#generatorPersistsTransactionsAndResumesSequenceAfterServiceRecreation test` stopped at compilation with `release version 25 not supported`; it did not reach the regression.
+- A portable Temurin `25.0.5+8` JDK was used from a temporary directory without changing the system Java installation.
+- `\.\mvnw.cmd -B -Dtest=SyntheticTransactionFactoryTest test`: **PASS**, 3 tests, 0 failures/errors; production and test sources compiled with Java release 25.
+- `\.\mvnw.cmd -B '-Dtest=SyntheticTransactionFactoryTest,TransactionFieldRegistryTest,RuntimePreflightTest,AppModeTest,KostakApplicationModeTest,SupabaseJwtDecoderTest,WorkerHeartbeatLifecycleTest' test`: **PASS**, 25 tests, 0 failures/errors after the final source change.
+- `\.\mvnw.cmd -B -Dtest=TransactionSchemaIntegrationTest#generatorPersistsTransactionsAndResumesSequenceAfterServiceRecreation+generatorPersistsSequenceMetadataAsJsonNumbers test`: **NOT COMPLETED**. Testcontainers waited on the local Docker named pipe for more than 60 seconds while the Docker daemon remained unresponsive; the command was interrupted. No pass is claimed.
+- `\.\mvnw.cmd -B verify`: **NOT RUN LOCALLY** because it requires the same unavailable Docker/Testcontainers path. The GitHub `backend-ci` job must provide the full Maven verify, PostgreSQL 17/18, Flyway, and regression evidence.
+- `git diff --check`: **PASS**.
+- Frontend checks: not run because no frontend file changed. The pre-fix PR run `40817089932` had `frontend-ci` successful and `backend-ci` failed on the confirmed JSON defect.
+
+## Safety and invariant review
+
+- Migrations V3/V4 were reviewed and not modified; no schema migration is needed.
+- Tenant ID continues to come from the locked tenant control row and is passed unchanged into persistence. Authorization/controller code was not modified.
+- Stable source/idempotency key formats, unique constraints, `ON CONFLICT DO NOTHING`, and conflict failure behavior are unchanged.
+- Transaction insertion and `next_sequence` advancement remain inside the same `TransactionTemplate` transaction. `FOR UPDATE SKIP LOCKED`, rollback behavior, and compare-and-update sequence guard are unchanged.
+- Global and tenant-level simulation gates, 1–10 rate validation, runtime configuration handling, and production rejection logic are unchanged. All 10 `RuntimePreflightTest` cases passed locally.
+- Only synthetic references and deterministic seeds are used.
+
+## Remote CI and remaining risk
+
+- At handoff creation, the new commit had not yet been pushed; its GitHub Actions run was therefore pending creation.
+- The remaining blocker is local Docker daemon unavailability. Executor review must require a green `backend-ci` run covering the new PostgreSQL JSONB regression and full `verify` before merge.
+- No merge, auto-merge, migration, deployment, or production configuration action was performed.
