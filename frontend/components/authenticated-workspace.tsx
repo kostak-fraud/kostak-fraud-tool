@@ -13,6 +13,11 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type NavigationKey = "transactions" | "rules";
 
+const requiredPermissionByPage: Record<NavigationKey, string> = {
+  transactions: "transactions.read",
+  rules: "rules.read",
+};
+
 type AuthenticatedWorkspaceProps = {
   activePage: NavigationKey;
   pageTitle: string;
@@ -153,6 +158,26 @@ export function AuthenticatedWorkspace({
             setState({ kind: "loading" });
             void loadIdentity();
           }}
+        />
+      </AppShell>
+    );
+  }
+
+  const requiredPermission = requiredPermissionByPage[activePage];
+  if (!state.identity.permissions.includes(requiredPermission)) {
+    return (
+      <AppShell
+        activePage={activePage}
+        pageTitle={pageTitle}
+        pageDescription={pageDescription}
+        identity={state.identity}
+        navigationPermissions={state.identity.permissions}
+        onLogout={handleLogout}
+        loggingOut={loggingOut}
+      >
+        <ForbiddenState
+          title={`You do not have access to ${pageTitle}`}
+          description="Your session is active, but your current tenant permissions do not allow this page. Contact your administrator if you need access."
         />
       </AppShell>
     );

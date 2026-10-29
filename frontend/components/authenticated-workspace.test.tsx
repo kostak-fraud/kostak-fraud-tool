@@ -50,15 +50,23 @@ const identity = {
   permissions: ["transactions.read"],
 };
 
-function renderWorkspace() {
+function renderWorkspace({
+  activePage = "transactions",
+  pageTitle = "Transactions",
+  content = "Protected workspace content",
+}: {
+  activePage?: "transactions" | "rules";
+  pageTitle?: string;
+  content?: string;
+} = {}) {
   return render(
     <AuthenticatedWorkspace
-      activePage="transactions"
-      pageTitle="Transactions"
+      activePage={activePage}
+      pageTitle={pageTitle}
       pageDescription="Review payment activity."
-      returnTo="/transactions"
+      returnTo={`/${activePage}`}
     >
-      <p>Protected workspace content</p>
+      <p>{content}</p>
     </AuthenticatedWorkspace>,
   );
 }
@@ -82,6 +90,58 @@ describe("AuthenticatedWorkspace", () => {
     expect(screen.getByText("Synthetic Payments Lab")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Transactions" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Rules" })).not.toBeInTheDocument();
+  });
+
+  it("does not render Rules content for an identity with only transactions.read", async () => {
+    renderWorkspace({
+      activePage: "rules",
+      pageTitle: "Rules",
+      content: "Rules workspace content",
+    });
+
+    expect(
+      await screen.findByRole("alert", { name: "You do not have access to Rules" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Rules workspace content")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Transactions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("does not render Transactions content for an identity with only rules.read", async () => {
+    mocks.getCurrentIdentity.mockResolvedValue({
+      ...identity,
+      roles: ["Rule Author"],
+      permissions: ["rules.read"],
+    });
+    renderWorkspace({ content: "Transactions workspace content" });
+
+    expect(
+      await screen.findByRole("alert", {
+        name: "You do not have access to Transactions",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Transactions workspace content")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Rules" })).toBeInTheDocument();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("renders the current page for an identity with its required permission", async () => {
+    mocks.getCurrentIdentity.mockResolvedValue({
+      ...identity,
+      roles: ["Rule Author"],
+      permissions: ["rules.read"],
+    });
+    renderWorkspace({
+      activePage: "rules",
+      pageTitle: "Rules",
+      content: "Authorized Rules content",
+    });
+
+    expect(await screen.findByText("Authorized Rules content")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("signs out and returns to login", async () => {
