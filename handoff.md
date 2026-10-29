@@ -1,68 +1,99 @@
-# Ticket Handoff — FND-002
+# Ticket Handoff — FND-003
 
 ## 1. Ticket ve branch
 
-- Ticket: `FND-002`
-- Branch: `feat/fnd-002-ci`
-- Başlangıç SHA: `b057cf9c1b55e49d01bbbe4651645364b21fc369`
-- Implementation SHA (negatif test revert'i sonrası): `9a18751f56322bcaaeeaf0fa694b52e3e901de3e`
-- Handoff commit'i: Bu dosyayı içeren branch head; kesin SHA Worker teslim mesajında verilir.
-- Kısa amaç: Frontend ve backend için deterministik GitHub Actions kalite kapısı kurmak, iki check'i `main` için zorunlu yapmak ve kırmızı check'in merge'ü engellediğini gerçek PR üzerinde kanıtlamak.
+- Ticket: `FND-003` — Vercel web, Northflank API/Worker, Supabase DB/Auth ve kontrollü release hazırlığı
+- Branch: `feat/fnd-003-deployment`
+- Base SHA: `fd5db3d79d0b127b2591d02828226bf604a59078`
+- Doğrulanan implementation head (handoff commit'i öncesi): `bd23ccbcb7cce34bc1b192a60abf87078755ef5e`
+- PR: https://github.com/kostak-fraud/kostak-fraud-tool/pull/4
+- Kısa amaç: Tek Java 25 image'ını API, sürekli Worker ve tek seferlik Migration modlarına ayırmak; migration-before-rollout, ortam izolasyonu ve fail-closed release gate hazırlığını kurmak. Gerçek provider rollout'u Executor'a bırakılmıştır.
 
 ## 2. Yapılan değişiklikler
 
-- Davranışsal değişiklik: `main` hedefli PR'larda ve `main` push'larında `frontend-ci` ile `backend-ci` job'ları koşar. Job'lardan biri başarısızsa workflow ve required check başarısız olur.
-- Workflow: `.github/workflows/ci.yml`; `contents: read`, koşul/path filtresi yok, `continue-on-error` yok, her job için 20 dakika timeout var. Resmî Action'lar tam commit SHA'larına sabitlendi.
-- Frontend: Node.js `24.20.0`, pnpm `11.24.0`, `pnpm install --frozen-lockfile`, lint, typecheck, test ve build.
-- Backend: Temurin Java `25`, Maven Wrapper `3.9.12`, `./mvnw -B verify`. Linux runner için `backend/mvnw` executable bit'i `100755` yapıldı.
-- Dokümantasyon: `README.md` içine tetikleyiciler, required check adları, merge politikası ve troubleshooting eklendi.
-- GitHub ayarı: Mevcut `main-protection` ruleset'i (`25592010`) korunarak `frontend-ci` ve `backend-ci`, GitHub Actions app integration ID `15368` kaynağıyla required status check yapıldı. Diğer aktif `main` ruleset'i (`25591830`) değiştirilmedi.
-- DB schema/migration/env etkisi: Yeni migration veya environment variable yok. CI sadece testlerin geçici Testcontainers PostgreSQL instance'larını kullanır.
+- `APP_MODE=api|worker|migrate` authoritative runtime preflight'i eklendi. API/Worker Flyway'i açamaz; Migration non-web çalışır, Flyway'i çalıştırır ve tamamlanınca exit eder.
+- Staging/Production için tam 40 karakter commit SHA, TLS'li ve database adı açık PostgreSQL URL'si, ayrı credential, en fazla 4 bağlantılık pool ve API Supabase Auth sözleşmesi fail-fast doğrulanır. IAM/JWT enforcement uygulanmadı; `IAM-001` kapsamındadır.
+- API startup DB probe, DB-backed readiness ve exact runtime SHA veren `/actuator/info` eklendi. Release gate hem readiness `UP` hem exact SHA eşleşmesi ister.
+- Worker DB startup probe, periyodik redacted heartbeat, non-daemon sürekli process ve graceful shutdown uygulandı. Worker healthcheck eksik, symlink, bayat veya `db_status=DOWN` heartbeat'i reddeder.
+- Java 25 multi-stage, digest-pinned, non-root Docker image ve local Compose `postgres → migrate → api/worker` sırası eklendi.
+- PostgreSQL 17.11 ve 18.3 üzerinde iki eşzamanlı Flyway migrator, schema doğrulama ve jOOQ probe testleri eklendi. Bu, Flyway yarış kilidini ve V1 idempotency davranışını sınar.
+- Başarılı `main` CI sonrasında çalışan protected `release-ready` workflow'u eklendi. Northflank run benzersiz adla tetiklenir, run ID bulunur, SHA/branch arguments doğrulanır ve sonuç başarıya kadar poll edilir. Manuel SHA, repo kodu çalıştırılmadan önce `origin/main` ancestry kontrolünden geçer.
+- Vercel `frontend/` root yapılandırması, public-only frontend env sözleşmesi ve Preview/Production ayrımı eklendi. Deployment Checks yoksa `--prod --skip-domain → smoke → promote` yolu runbook'ta tanımlandı.
+- `docs/DEPLOYMENT_RUNBOOK.md`, mimari/stack/ADR/delivery/backlog ve README güncellendi. Harici kaynaklar veya canlı deployment varmış gibi işaretlenmedi.
+
+Önemli dosyalar:
+
+- Runtime: `backend/src/main/java/com/kostak/fraud/runtime/`, `backend/src/main/java/com/kostak/fraud/worker/`, `backend/src/main/java/com/kostak/fraud/migration/`
+- Container/local topology: `backend/Dockerfile`, `backend/worker-healthcheck.sh`, `compose.yaml`
+- Release gate: `.github/workflows/release.yml`, `scripts/release/`
+- Provider sözleşmesi: `docs/DEPLOYMENT_RUNBOOK.md`, `frontend/vercel.json`, `.env.example`, `frontend/.env.example`
+
+DB etkisi:
+
+- Yeni production migration eklenmedi; mevcut `V1` değiştirilmedi.
+- API ve Worker startup migration çalıştırmaz. Migration yalnız explicit `APP_MODE=migrate` job'ında çalışır.
+- PostgreSQL 17/18 compatibility ve eşzamanlı migration davranışı Testcontainers ile doğrulandı.
 
 ## 3. Kabul kriterleri ve test kanıtı
 
-| Kriter | Sonuç | Kanıt (komut/dosya/ekran) |
+| Kriter | Sonuç | Kanıt |
 |---|---|---|
-| AC-1 Frontend CI | Pass | Nihai run `39679258690`, `frontend-ci` job `119497144771`: frozen install, lint, typecheck, 2/2 test ve Next.js production build geçti. |
-| AC-2 Backend CI | Pass | Nihai run `39679258690`, `backend-ci` job `119497144387`: `./mvnw -B verify` ve `BUILD SUCCESS`; `KostakApplicationTest` 1/1, `DatabaseIntegrationIT` 1/1. |
-| AC-3 İzole PostgreSQL integration | Pass | GitHub-hosted Linux logu PostgreSQL `18.3`, iki geçici container JDBC portu, Flyway v1 migration ve jOOQ testini gösteriyor. Service container, Supabase, secret veya harici DB kullanılmadı. |
-| AC-4 PR kalite kapısı | Pass | `.github/workflows/ci.yml` hem `pull_request` hem `push` için yalnız `main` tetikleyicisine sahip; iki job adı sabit ve koşulsuz. |
-| AC-5 Protected main / required checks | Pass | Aktif `main-protection` ruleset `25592010`: PR, deletion ve non-fast-forward kuralları korundu; required checks `frontend-ci` + `backend-ci` eklendi. Ruleset: https://github.com/kostak-fraud/kostak-fraud-tool/rules/25592010 |
-| AC-6 Başarısız PR doğrulaması | Pass | Geçici failing test commit'i `f8fb0ce2040e99ba7468ea3b67ce64eb2bc2fcea`; run `39679075291`; `frontend-ci` job `119496495850` failure, `backend-ci` success. Aynı anda PR API sonucu `mergeable: MERGEABLE`, `mergeStateStatus: BLOCKED`. Değişiklik `9a18751...` revert commit'iyle kaldırıldı; force-push yok. |
+| Aynı Java 25 image ile API/Worker/Migration ayrımı; API/Worker Flyway kapalı | PASS | `KostakApplicationModeTest`, `RuntimePreflightTest`; `backend-ci` run `40795037232` |
+| API DB readiness ve exact release SHA | PASS | `KostakApplicationTest`; `/actuator/health/readiness` + `/actuator/info`; gate unit testleri |
+| Worker sürekli heartbeat ve graceful shutdown | PASS | `WorkerHeartbeatLifecycleTest`; `backend/worker-healthcheck.test.sh`; CI image healthcheck smoke |
+| Migration yarışı engeli | PASS | PG17 ve PG18 testlerinde iki eşzamanlı Flyway migrator; her ikisi de schema v1 doğruladı |
+| PostgreSQL 17/18 migration + jOOQ uyumluluğu | PASS | `Postgres17DatabaseIntegrationIT`, `DatabaseIntegrationIT`; `backend-ci` run `40795037232` |
+| Docker image build ve non-root runtime | PASS | `backend-ci` içindeki `Build and inspect backend runtime image`; user `10001:10001` doğrulandı |
+| Vercel Preview/Production ve secret izolasyonu | PREPARED / LIVE UNVERIFIED | `frontend/vercel.json`, env örnekleri, `docs/DEPLOYMENT_RUNBOOK.md`; gerçek Vercel proje/build yok |
+| Northflank workflow completion + SHA/branch + API smoke gate | PREPARED / LIVE UNVERIFIED | `.github/workflows/release.yml`, release script testleri; provider workflow/token/project kurulmadı |
+| Production secret repo/PR/log dışı | PASS (repository scope) | Secret pattern taraması yalnız yasaklayıcı doküman referanslarını buldu; PR workflow production secret kullanmıyor |
+| Canlı URL, schema version, provider revision ve smoke | NOT RUN / BLOCKER | Harici Northflank, Supabase ve Vercel kaynakları kurulmadı; kanıt uydurulmadı |
 
-- PR: https://github.com/kostak-fraud/kostak-fraud-tool/pull/3
-- İlk başarılı workflow: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/39678829817
-- Negatif workflow: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/39679075291
-- Negatif `frontend-ci` job: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/39679075291/job/119496495850
-- Revert sonrası başarılı workflow: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/39679258690
-- Nihai `frontend-ci`: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/39679258690/job/119497144771
-- Nihai `backend-ci`: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/39679258690/job/119497144387
-- Lint: Lokal `pnpm lint` ve GitHub `frontend-ci` başarılı.
-- Typecheck: Lokal `pnpm typecheck` ve GitHub `frontend-ci` başarılı.
-- Unit/integration test: Lokal frontend 2/2. Backend, geçici Temurin Java 25.0.4.1 Linux container'ında `./mvnw -B verify` ile başarılı; GitHub runner'da Surefire ve Failsafe testleri ayrı ayrı geçti.
-- Build: Lokal `pnpm build` ve GitHub frontend build geçti; Maven jar/repackage/verify geçti.
-- Git: `git diff --check` geçti; final diff yalnız `.github/workflows/ci.yml`, `README.md`, `backend/mvnw` mode ve `handoff.md` içerir.
-- Manuel UI/UX test adımları: Uygulanmadı; ticket kullanıcı ekranını değiştirmiyor. Mevcut AppShell otomatik testleri CI'da 2/2 geçti.
+Test özeti:
+
+- PR CI: https://github.com/kostak-fraud/kostak-fraud-tool/actions/runs/40795037232
+  - `frontend-ci`: PASS — release gate + worker healthcheck script, frozen install, lint, typecheck, 2 frontend test, Next.js production build.
+  - `backend-ci`: PASS — Java 25 Maven verify; 15 unit/application test + 2 PostgreSQL integration testi; PostgreSQL 17.11 ve 18.3; Docker image build/non-root/healthcheck smoke.
+- Lokal `corepack pnpm install --frozen-lockfile`: PASS.
+- Lokal `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`: PASS.
+- Lokal release gate Node testleri: PASS, 4/4.
+- Lokal worker healthcheck WSL/Linux testi: PASS.
+- `docker compose --profile runtime config --quiet`: PASS.
+- `git diff --check`: PASS.
+- Secret pattern taraması: PASS; gerçek secret bulunmadı.
+- Lokal Docker image build: Maven Central'a Docker içinden bağlantı timeout'u nedeniyle tamamlanamadı. Aynı Dockerfile PR `backend-ci` üzerinde başarıyla build edildi; yerel üç-mode Compose runtime smoke ayrıca çalıştırılmadı.
+- Manuel UI/UX: Uygulanmadı; bu ticket yeni kullanıcı ekranı içermiyor.
 
 ## 4. Güvenlik ve operasyon
 
-- Workflow token izni yalnız `contents: read`; secret, credential, private key, `pull_request_target` veya production veri kaynağı yok.
-- Action supply-chain sınırı: `actions/checkout` v7.0.1, `actions/setup-node` v7.1.0, `actions/setup-java` v6.1.0 ve `pnpm/action-setup` v6.1.0 tam commit SHA ile pinlendi.
-- Testcontainers izolasyonu: GitHub-hosted runner Docker daemon'ında `postgres:18.3-alpine3.23` kullanır; ayrı PostgreSQL service eklenmedi.
-- Tenant/RBAC kontrolü: Bu ticket uygulama auth/tenant davranışını değiştirmiyor; kapsam dışı.
-- Yarış koşulları/transaction atomicity: Domain mutation yok; kapsam dışı.
-- Ruleset etkisi: `main-protection` active ve bypass actor yok (`current_user_can_bypass: never`). Mevcut PR zorunluluğu, force-push ve deletion korumaları aynen korundu.
-- Rollback: Workflow sorunu olursa önce düzeltme commit'i tercih edilir. Zorunlu geri dönüşte required check kuralı ruleset'ten kontrollü olarak kaldırılıp workflow commit'i revert edilir; ruleset'ler silinmez veya yeniden adlandırılmaz.
+- Tenant/RBAC: İşlem/tenant verisi veya authorization eklenmedi. Supabase URL/JWKS/audience yalnız fail-fast contract'tır; gerçek JWT validation ve backend membership `IAM-001` kapsamındadır.
+- Secret güvenliği: Frontend yalnız `NEXT_PUBLIC_*` publishable değerlerini kabul eder. DB password, Northflank token ve provider deployment secretları yalnız provider/protected environment store'larında tanımlanmalıdır.
+- Release güvenliği: Production secret kullanan workflow yalnız başarılı `main` CI veya manuel `main` dispatch sonrası protected `production` environment'ta çalışır. Manuel SHA `main` ancestry doğrulanmadan repository script'i çalıştırılmaz.
+- Migration: API/Worker Flyway'i açamaz. Northflank workflow concurrency `forbid` ve explicit migration/wait sırası ile kurulmalıdır. Destructive rollback yok; backup/recovery + fix-forward kullanılır.
+- Rollback: Schema ile uyumlu önceki immutable API/Worker image'ına ve önceki Vercel deployment'ına dönüş mümkündür; schema otomatik geri alınmaz.
+- Gözlemlenebilirlik: API readiness ve release SHA; Worker redacted heartbeat/DB status/release SHA sağlar. Full JDBC URL veya credential loglanmaz.
 
 ## 5. Bilinen eksikler ve riskler
 
-- Blocker var mı? Hayır; AC-1–AC-6 gerçek GitHub kanıtlarıyla geçti.
-- Yerel ortam notu: Windows host'un varsayılan Java'sı 17 olduğu için `.\mvnw.cmd -B verify` doğrudan host JVM'iyle koşturulmadı. Aynı kaynak, Maven Wrapper ve Docker daemon'ı Temurin Java 25.0.4.1 geçici Linux container'ından `./mvnw -B verify` ile doğrulandı; ayrıca asıl GitHub Linux job'u geçti.
-- İlk container-içinde lokal deneme Docker Desktop host adresi nedeniyle Ryuk'a ulaşamadı ve sonlandırıldı. Tekrar denemede sadece bu lokal nested-container kurgusu için `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` ve `TESTCONTAINERS_RYUK_DISABLED=true` kullanıldı; GitHub workflow'una bu env'ler eklenmedi. Artık test container'ı kalmadı.
-- Bilinçli kapsam dışı maddeler: FND-003 deployment, Vercel/Railway/Supabase, production secrets, auth/RBAC, fraud domain, UI yeniden tasarımı ve dependency upgrade.
-- Executor'ın özellikle gözden geçirmesi gereken yer: Ruleset `25592010` içindeki required check adlarının ve GitHub Actions app source ID'sinin korunması; PR #3 final `CLEAN` durumu ve workflow logları.
+- BLOCKER: Northflank, Supabase ve Vercel gerçek hesap/proje/resource/secret kurulumu ve live rollout yapılmadı. FND-003 `DONE` değildir.
+- Northflank Developer Sandbox kota/plan, `nf-compute-20`/`nf-compute-50`, IPv6 egress ve 512 MiB/1024 MiB JVM davranışı UNVERIFIED.
+- Northflank workflow template'i provider dashboard/API üzerinde oluşturulmalı; build → migrate/wait → exact revision API/Worker rollout → Worker heartbeat koşulu gerçek run ile kanıtlanmalı.
+- Supabase staging ve production ayrı PostgreSQL 17/Auth projeleri, endpoint (direct/session pooler), TLS CA/`verify-full`, runtime DB role ve backup/recovery hazırlığı UNVERIFIED.
+- Vercel project root/Production Branch/env ayarları, pnpm 11.24.0 gerçek Preview/Production build'i ve Production Deployment Checks plan/hesap erişimi UNVERIFIED.
+- Deployment Checks yoksa protected Vercel CLI staged candidate akışı henüz repository workflow'una eklenmedi; runbook'taki kontrollü fallback Executor tarafından kurulmalı.
+- Canlı API/Worker/Migration mode container smoke, URL, schema checksum/version ve provider revision eşleşmesi yok. Repository testleri provider kanıtı değildir.
+- `backlog/FND-002.md` statüsü base commit'teki CI gerçeğine rağmen `PLANNED`; bu FND-003 kapsamında sessizce değiştirilmedi.
+- GitHub runner, `ubuntu-latest` etiketinin Ubuntu 26'ya geçiş uyarısını verdi; mevcut koşu Ubuntu runner üzerinde başarılıdır, ileride image değişimi izlenmelidir.
+
+Executor'ın özellikle incelemesi gerekenler:
+
+- Northflank workflow template'inin gerçekten aynı SHA/image ile migration-before-rollout sırasını ve Worker heartbeat beklemesini uygulaması.
+- GitHub protected `production` environment, token least-privilege izinleri ve `DEPLOYMENT_AUTOMATION_ENABLED` açılmadan önce dry-run/review.
+- Vercel `release-ready` Deployment Check bağlantısı; özellik yoksa auto domain assignment kapalı staged promotion yolu.
+- Supabase service DB role'ünün superuser/BYPASSRLS olmaması ve staging/production credential izolasyonu.
 
 ## 6. Sonraki aksiyon
 
-- İncelemeye hazır mı? Evet.
-- Worker'ın kısa rapor özeti: FND-002 CI workflow'u, iki required check ve README dokümantasyonu tamamlandı. Frontend/backend yerel kontrolleri ile GitHub-hosted Linux CI geçti; PostgreSQL Testcontainers, Flyway ve jOOQ loglarla doğrulandı. Kontrollü kırmızı `frontend-ci` PR merge'ünü `BLOCKED` yaptı, sonra normal revert ile temizlendi ve iki check yeniden yeşile döndü. Executor PR #3'ü inceleyebilir; Worker main'e merge etmedi ve ticket statüsünü değiştirmedi.
+- İncelemeye hazır mı? **Evet, repository/PR hazırlığı incelemeye hazır. Canlı deployment ve ticket DONE kararı hazır değildir.**
+- Executor sırası: PR diff + CI incele → provider preflight/kota → staging kaynakları ve smoke → production kaynakları/migration/release gate → Vercel domain promotion → URL/SHA/schema evidence → ancak sonra merge/deploy politikasına göre ticket kapanışı.
+- Main'e merge yapılmadı.
