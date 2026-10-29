@@ -33,6 +33,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
+      - name: Validate release gate scripts
+        run: |
+          node --check scripts/release/run-northflank-workflow.mjs
+          node --test scripts/release/*.test.mjs
+          sh backend/worker-healthcheck.test.sh
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
@@ -72,3 +78,92 @@ jobs:
       - name: Verify backend
         working-directory: backend
         run: ./mvnw -B verify
+
+      - name: Build and inspect backend runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="kostak-backend:${GITHUB_SHA}"
+          docker build --tag "$image" backend
+
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "10001:10001"
+          docker run --rm --entrypoint /app/worker-healthcheck.sh --env APP_MODE=api "$image"
+          if docker run --rm --entrypoint /app/worker-healthcheck.sh --env APP_MODE=worker "$image"; then
+            echo "::error::Worker healthcheck accepted a missing heartbeat file."
+            exit 1
+          fi
+
+  release-ready:
+    name: release-ready
+    needs:
+      - frontend-ci
+      - backend-ci
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.frontend-ci.result == 'success' &&
+      needs.backend-ci.result == 'success' &&
+      vars.DEPLOYMENT_AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    concurrency:
+      group: production-release
+      cancel-in-progress: false
+    env:
+      RELEASE_SHA: ${{ github.sha }}
+      RELEASE_BRANCH: main
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.20.0
+
+      - name: Verify release commit and check context
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::RELEASE_SHA must be a full lowercase commit SHA."
+            exit 1
+          fi
+
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "$checked_out_sha" != "$RELEASE_SHA" || "$GITHUB_SHA" != "$RELEASE_SHA" ]]; then
+            echo "::error::The release commit, checkout, and GitHub check context must match."
+            exit 1
+          fi
+
+      - name: Test release gate helpers
+        run: node --test scripts/release/*.test.mjs
+
+      - name: Verify release is latest main before rollout
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/verify-latest-main.mjs
+
+      - name: Run Northflank release workflow
+        shell: bash
+        env:
+          NORTHFLANK_API_TOKEN: ${{ secrets.NORTHFLANK_API_TOKEN }}
+          NORTHFLANK_PROJECT_ID: ${{ vars.NORTHFLANK_PROJECT_ID }}
+          NORTHFLANK_WORKFLOW_ID: ${{ vars.NORTHFLANK_WORKFLOW_ID }}
+        run: node scripts/release/run-northflank-workflow.mjs
+
+      - name: Smoke production API readiness and revision
+        env:
+          PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
+        run: node scripts/release/verify-api-release.mjs
+
+      - name: Verify release is still latest main
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/verify-latest-main.mjs

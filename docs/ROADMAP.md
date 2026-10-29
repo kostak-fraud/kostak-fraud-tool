@@ -19,6 +19,6 @@
 
 - **Bir haftalık rapor:** İlk hafta tamamen uygulama bitirmek yerine doğrulanabilir altyapı kanıtı ve ürün/mimari/backlog dokümantasyonu hedeflenir. Çalışan repo/deploy varsa ayrıca gösterilir, yoksa dürüstçe planlanmış denir. Taslak: [`PROGRESS_REPORT.md`](PROGRESS_REPORT.md).
 - **Zamansal Rule Engine:** Belirlenmiş sınırlı P0 senaryosunu uçtan uca çalıştır; kullanıcı SQL/kod çalıştırmasını hiçbir aşamada açma.
-- **Erişim ve ödemeler:** Vercel, Railway, Supabase ve GitHub org/repo izinleri Ömer tarafından sağlanmalıdır; eksikse Executor external blocker raporu verir.
+- **Erişim ve ödemeler:** Vercel, Northflank, Supabase ve GitHub org/repo izinleri Ömer tarafından sağlanmalıdır; eksikse deployment hazırlığı yapılabilir ancak Executor canlı rollout/smoke için external blocker raporu verir.
 - **Açık domain kararları:** Kural/lock/bulk ticket'ları yanlış varsayım ile başlamasın. [`DECISIONS.md`](DECISIONS.md) listesi DoR kapısıdır.
 - **UI/UX:** Ekranlar son hafta cilalanmaz; UI-001 ve her UI ticket'ı `UI_BLUEPRINT.md` altındaki manuel turla geliştirilir.
