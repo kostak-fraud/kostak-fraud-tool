@@ -38,7 +38,7 @@ final class PostgresCompatibilityAssertions {
 
         Flyway flyway = migrator(postgres);
         flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
 
         try (var connection = DriverManager.getConnection(
                 postgres.getJdbcUrl(),
@@ -59,7 +59,7 @@ final class PostgresCompatibilityAssertions {
                     .selectCount()
                     .from(table(name("role_permissions")))
                     .fetchOne(0, Integer.class);
-            assertThat(permissionCount).isEqualTo(17);
+            assertThat(permissionCount).isEqualTo(18);
 
             Integer transactionIndexCount = dsl
                     .selectCount()

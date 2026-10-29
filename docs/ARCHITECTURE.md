@@ -13,7 +13,7 @@ flowchart LR
   Web -->|Supabase Auth login| Auth[Supabase Auth]
   API -->|TLS, jOOQ transactions| DB[(Supabase PostgreSQL)]
   Worker[Spring Boot Worker / Railway] <-->|Future claim jobs, read/write events| DB
-  Worker -->|Future synthetic generator| DB
+  Worker -->|Seeded synthetic ingestion| DB
   API -.->|SSE events; polling fallback| Web
 ```
 
@@ -21,7 +21,7 @@ flowchart LR
 - Web (Next.js) **backend'in yerine geçmez**. Kritik business mutation sadece Spring API ile yürür.
 - Frontend yalnız kendi tenant'ına ait verilere sunucu-kontrollü erişir. Supabase'in DB Data API'si bu ürünün transaction API'si değildir.
 - Tek Postgres veri doğruluğu kaynağıdır; Redis / Kafka ilk sürümde zorunlu değildir.
-- FND-003 yalnız Worker'ın sürekli runtime ve heartbeat temelini kurar. Job claim, synthetic generator ve fraud evaluation ilgili sonraki ticket'lar tamamlanana kadar aktif davranış değildir.
+- TX-002 seeded synthetic generator ve idempotent persistent ingestion ekler. Worker, APP_SIMULATION_ENABLED environment gate'i açık ve tenant-admin tarafından tenant control enabled yapılmışsa üretim yapar; tenant başına rate 1–10 event/s ile sınırlıdır. Rule evaluation ayrı RULE-002 kapsamındadır.
 - Supabase Auth bağlantı/environment sözleşmesi FND-003'te hazırlanır; gerçek login/JWT doğrulama ve tenant authorization IAM-001 kapsamındadır.
 
 ### Runtime modları

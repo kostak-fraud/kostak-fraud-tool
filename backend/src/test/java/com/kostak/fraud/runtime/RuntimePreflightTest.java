@@ -174,6 +174,42 @@ class RuntimePreflightTest {
     }
 
     @Test
+    void productionCannotEnableSyntheticGeneratorButStagingCan() {
+        Map<String, String> production = deployed("worker");
+        production.put("APP_SIMULATION_ENABLED", "true");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> validate(production))
+                .withMessageContaining("must be false in production");
+
+        production.put("APP_SIMULATION_ENABLED", "false");
+        assertThat(validate(production).environment()).isEqualTo("production");
+
+        Properties systemProperties = new Properties();
+        systemProperties.setProperty("app.simulation.enabled", "true");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> RuntimePreflight.validate(production, systemProperties, new String[0]))
+                .withMessageContaining("must be false in production");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> RuntimePreflight.validate(
+                        production,
+                        new Properties(),
+                        new String[]{"--app.simulation.enabled=true"}
+                ))
+                .withMessageContaining("must be false in production");
+
+        Map<String, String> staging = deployed("worker");
+        staging.put("APP_ENV", "staging");
+        staging.put("SPRING_PROFILES_ACTIVE", "staging");
+        staging.put("APP_SIMULATION_ENABLED", "true");
+        assertThat(validate(staging).environment()).isEqualTo("staging");
+
+        staging.put("APP_SIMULATION_ENABLED", "yes");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> validate(staging))
+                .withMessageContaining("must be true or false");
+    }
+
+    @Test
     void deployedWorkerDoesNotRequireApiAuthContract() {
         RuntimeSettings settings = validate(deployed("worker"));
         assertThat(settings.mode()).isEqualTo(AppMode.WORKER);

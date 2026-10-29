@@ -33,6 +33,9 @@ app:
     jwks-url: ${SUPABASE_JWKS_URL:https://example.invalid/auth/v1/.well-known/jwks.json}
     issuer: ${SUPABASE_JWT_ISSUER:https://example.invalid/auth/v1}
     audience: ${SUPABASE_JWT_AUDIENCE:authenticated}
+  simulation:
+    enabled: ${APP_SIMULATION_ENABLED:false}
+    poll-interval: ${APP_SIMULATION_POLL_INTERVAL:1s}
   worker:
     heartbeat-interval: ${APP_WORKER_HEARTBEAT_INTERVAL:30s}
     heartbeat-file: ${APP_WORKER_HEARTBEAT_FILE:/tmp/kostak-worker-heartbeat}

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +19,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,7 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.flyway.enabled=false",
         "app.auth.jwks-url=https://example.invalid/auth/v1/.well-known/jwks.json",
         "app.auth.issuer=https://test.supabase.co/auth/v1",
-        "app.auth.audience=authenticated"
+        "app.auth.audience=authenticated",
+        "app.simulation.enabled=true"
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -141,6 +144,28 @@ class IdentityAuthorizationIntegrationTest {
         mockMvc.perform(get("/api/v1/transactions/fields")
                         .param("channel", "unknown")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(jwt -> jwt.subject(VIEWER_ID.toString()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void onlyTenantAdminCanControlGeneratorAndRateIsBounded() throws Exception {
+        mockMvc.perform(get("/api/v1/simulation/control")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(jwt -> jwt.subject(VIEWER_ID.toString()))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/api/v1/simulation/control")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true,\"ratePerSecond\":3}")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(jwt -> jwt.subject(ADMIN_A_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.ratePerSecond").value(3))
+                .andExpect(jsonPath("$.globallyEnabled").value(true));
+
+        mockMvc.perform(put("/api/v1/simulation/control")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true,\"ratePerSecond\":11}")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(jwt -> jwt.subject(ADMIN_A_ID.toString()))))
                 .andExpect(status().isBadRequest());
     }
 
