@@ -2,7 +2,7 @@
 
 **Sürüm:** v0.3 — Gereksinimler + mimari + UX blueprint + bağımlılık sıralı backlog  
 **Tarih:** 2026-10-29
-**Durum:** Ürün gereksinimleri ve ana stack seçildi; **mock veri sözlüğü ve UX blueprint önerisi** ile ayrıntılı backlog oluşturuldu. Bazı domain kararları ve gerçek channel field sözlüğü açık. FND-001 lokal uygulama scaffold'u ve FND-002 CI kalite kapısı mevcut; FND-003 deployment hazırlığı incelemede, harici ortamlara gerçek deployment henüz doğrulanmadı.
+**Durum:** Ürün gereksinimleri ve stack seçildi; FND-001 scaffold, FND-002 CI ve UI-001 temel arayüz main'de. Railway staging API/Worker çalışıyor. Production Railway projesi ayrı ama boş; production release otomatik başlatılmıyor.
 **Amaç:** UMDE ve bitirme projesi için çalışan akademik ürün; ileride farklı ödeme kuruluşlarına sunulabilecek güvenilir bir temel.
 
 ## Nereden başlamalı?
@@ -21,7 +21,7 @@
 | Kural yürütme zaman/aggregate semantiği varsayımları | [`docs/ENGINE_SEMANTICS.md`](docs/ENGINE_SEMANTICS.md) |
 | RBAC izin matrisi / tenant erişimi | [`docs/RBAC.md`](docs/RBAC.md) |
 | Executor → Worker → Executor, CI/CD ve kalite kapıları | [`docs/DELIVERY.md`](docs/DELIVERY.md) |
-| Northflank, Vercel ve Supabase kurulum/deploy/smoke adımları | [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md) |
+| Railway, Vercel ve Supabase kurulum/deploy/smoke adımları | [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md) |
 | Onaylanmış kararlar, varsayımlar ve açık sorular | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | 1 haftalık rapor ve 2 aylık yürütme planı | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | Backlog indeks ve her ticket’ın tekil kabul kriterleri | [`backlog/INDEX.md`](backlog/INDEX.md) ve [`backlog/`](backlog/) |
@@ -40,7 +40,7 @@
 
 ## Lokal geliştirme
 
-Bu scaffold yalnız sentetik lokal değerler kullanır. CI kalite kapısı mevcuttur; production/demo deployment, Northflank/Vercel kaynakları veya Supabase bağlantısının hazır olduğunu varsaymaz.
+Bu scaffold yalnız sentetik lokal değerler kullanır. CI kalite kapısı mevcuttur; Railway staging çalışır, ancak production projesi ve production API deployment'ı henüz hazır değildir.
 
 ### Önkoşullar
 
@@ -135,9 +135,9 @@ Workflow production secret'larına veya harici bir veritabanına ihtiyaç duymaz
 
 ## Deployment hazırlığı ve mevcut durum
 
-Hedef topoloji Vercel web, iki ayrı Northflank servisi üzerinde API + Worker ve Supabase PostgreSQL/Auth'tur. Aynı immutable backend image'ı `APP_MODE=api`, `APP_MODE=worker` ve tek seferlik `APP_MODE=migrate` davranışlarını sunar. Ayrıntılı environment sözleşmesi, sağlayıcı alanları, release sırası ve smoke kanıtı [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md) içindedir.
+Hedef topoloji Vercel web, iki ayrı Railway servisi üzerinde API + Worker ve Supabase PostgreSQL/Auth'tur. Aynı immutable backend image'ı `APP_MODE=api`, `APP_MODE=worker` ve tek seferlik `APP_MODE=migrate` davranışlarını sunar. Ayrıntılı environment sözleşmesi, sağlayıcı alanları, release sırası ve smoke kanıtı [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md) içindedir.
 
-Bu repository'deki deployment dosyaları harici hesap, secret, URL veya canlı rollout kanıtı değildir. Vercel Preview/Production, Northflank servis/job ve Supabase staging/production projeleri Executor tarafından gerçekten kurulup smoke edilmeden FND-003 `DONE`, sistem `DEPLOYED` veya main sonrası otomatik release `VERIFIED` olarak raporlanmaz.
+Vercel main Git deployment'ları frontend/vercel.json ile kapalıdır. GitHub release workflows Railway orchestration doğrulanana kadar fail-closed'dur. Production migration, deployment ve promotion yapılmadı; FND-003 ancak gerçek production wiring + smoke kanıtı sonrası DONE sayılabilir.
 
 ### Ortamı durdurma
 

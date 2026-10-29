@@ -35,7 +35,8 @@ jobs:
 
       - name: Validate release gate scripts
         run: |
-          node --check scripts/release/run-northflank-workflow.mjs
+          node --check scripts/release/verify-api-release.mjs
+          node --check scripts/release/verify-latest-main.mjs
           node --test scripts/release/*.test.mjs
           sh backend/worker-healthcheck.test.sh
 
@@ -110,7 +111,7 @@ jobs:
       needs.backend-ci.result == 'success' &&
       vars.DEPLOYMENT_AUTOMATION_ENABLED == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
     environment: production
     concurrency:
       group: production-release
@@ -135,12 +136,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::RELEASE_SHA must be a full lowercase commit SHA."
             exit 1
           fi
-
           checked_out_sha="$(git rev-parse HEAD)"
           if [[ "$checked_out_sha" != "$RELEASE_SHA" || "$GITHUB_SHA" != "$RELEASE_SHA" ]]; then
             echo "::error::The release commit, checkout, and GitHub check context must match."
@@ -150,25 +149,13 @@ jobs:
       - name: Test release gate helpers
         run: node --test scripts/release/*.test.mjs
 
-      - name: Verify release is latest main before rollout
+      - name: Verify release is latest main before release
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/release/verify-latest-main.mjs
 
-      - name: Run Northflank release workflow
+      - name: Fail closed until Railway production release is configured
         shell: bash
-        env:
-          NORTHFLANK_API_TOKEN: ${{ secrets.NORTHFLANK_API_TOKEN }}
-          NORTHFLANK_PROJECT_ID: ${{ vars.NORTHFLANK_PROJECT_ID }}
-          NORTHFLANK_WORKFLOW_ID: ${{ vars.NORTHFLANK_WORKFLOW_ID }}
-        run: node scripts/release/run-northflank-workflow.mjs
-
-      - name: Smoke production API readiness and revision
-        env:
-          PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
-        run: node scripts/release/verify-api-release.mjs
-
-      - name: Verify release is still latest main
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/release/verify-latest-main.mjs
+        run: |
+          echo "::error::Production release is intentionally blocked until Railway production services, migration sequencing, and live smoke evidence are configured and verified."
+          exit 1

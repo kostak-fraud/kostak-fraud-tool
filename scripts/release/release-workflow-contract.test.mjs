@@ -17,18 +17,22 @@ test("automatic release-ready belongs to the exact successful main CI commit", (
   assert.doesNotMatch(ciWorkflow, /workflow_run/);
 });
 
-test("automatic rollout is fenced by latest-main guards before and after provider release", () => {
-  const firstGuard = ciWorkflow.indexOf("- name: Verify release is latest main before rollout");
-  const rollout = ciWorkflow.indexOf("- name: Run Northflank release workflow");
-  const smoke = ciWorkflow.indexOf("- name: Smoke production API readiness and revision");
-  const finalGuard = ciWorkflow.indexOf("- name: Verify release is still latest main");
-  const guardInvocations = ciWorkflow.match(
-    /run: node scripts\/release\/verify-latest-main\.mjs/g,
-  );
+test("production release fails closed until Railway orchestration is verified", () => {
+  assert.match(ciWorkflow, /DEPLOYMENT_AUTOMATION_ENABLED == 'true'/);
+  assert.match(ciWorkflow, /Fail closed until Railway production release is configured/);
+  assert.doesNotMatch(ciWorkflow, /NORTHFLANK_API_TOKEN|NORTHFLANK_PROJECT_ID|NORTHFLANK_WORKFLOW_ID/);
+  assert.doesNotMatch(ciWorkflow, /run-northflank-workflow\.mjs/);
+  assert.doesNotMatch(ciWorkflow, /Smoke production API readiness and revision/);
+  assert.match(manualWorkflow, /Fail closed until Railway production release is configured/);
+  assert.doesNotMatch(manualWorkflow, /NORTHFLANK|run-northflank-workflow\.mjs/);
+});
 
-  assert.ok(firstGuard >= 0 && firstGuard < rollout);
-  assert.ok(rollout < smoke && smoke < finalGuard);
-  assert.equal(guardInvocations?.length, 2);
+test("automatic release validates latest main before the fail-closed stop", () => {
+  const guard = ciWorkflow.indexOf("- name: Verify release is latest main before release");
+  const stop = ciWorkflow.indexOf("- name: Fail closed until Railway production release is configured");
+  const guardInvocations = ciWorkflow.match(/run: node scripts\/release\/verify-latest-main\.mjs/g);
+  assert.ok(guard >= 0 && guard < stop);
+  assert.equal(guardInvocations?.length, 1);
 });
 
 test("manual recovery cannot publish the release-ready deployment check", () => {

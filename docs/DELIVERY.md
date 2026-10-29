@@ -1,6 +1,6 @@
 # Geliştirme ve Teslim Playbook'u
 
-**Statü:** HQ tarafından kararlaştırılmış iş akışı. FND-001 scaffold ve FND-002 GitHub Actions kalite kapısı mevcut; Vercel + Northflank + Supabase release hazırlığı FND-003 kapsamında incelemede, harici deployment henüz doğrulanmadı. Ayrıntılar: [`TECH_STACK.md`](TECH_STACK.md) ve [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md).
+**Statü:** FND-001/FND-002 mevcut; Railway staging çalışıyor, production projesi boş. Vercel main auto-deploy ve GitHub production release workflows güvenlik için fail-closed. Ayrıntılar: [`TECH_STACK.md`](TECH_STACK.md) ve [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md).
 
 ## 1. Roller ve sorumluluk
 
@@ -34,7 +34,7 @@
 
 ## 3. Kalite kapısı ve ortam yaklaşımı
 
-**Hedef:** `main`e merge edilen her commit deploy edilebilir ve uygulamaya yansımış olsun. **Karar:** Vercel web, Northflank Java API/Worker ve Supabase DB/Auth; gerekçe ve 2026-10-29 provider değişikliği ADR-0003'te kayıtlıdır.
+**Hedef:** `main`e merge edilen her commit CI ile doğrulanır; staging'e deploy edilebilir. **Karar:** Vercel web, Railway Java API/Worker ve Supabase DB/Auth. Production auto-promotion şimdilik kapalıdır.
 
 **Mevcut zorunlu CI:**
 - `frontend-ci`: frozen install, lint, typecheck, test ve build.
@@ -48,12 +48,12 @@
 2. Protected `main` merge ve iki required check'in başarılı olması.
 3. Commit SHA ile izlenebilir immutable backend image build.
 4. Aynı image ile explicit `APP_MODE=migrate` job; başarı beklenir, hata rollout'u durdurur.
-5. Aynı revision ile `APP_MODE=api` ve `APP_MODE=worker` Northflank rollout'u.
+5. Aynı revision ile `APP_MODE=api` ve `APP_MODE=worker` Railway rollout'u.
 6. API readiness + exact release SHA ve Worker liveness/heartbeat doğrulaması; ardından başarılı GitHub `release-ready` check.
 7. Vercel Git deployment için `release-ready` bekleyen Production Deployment Check ile domain assignment; özellik yoksa staged `--skip-domain` candidate → smoke → promote.
 8. HTTP/config/demo-safe smoke, schema version ve revision/SHA kanıtı.
 
-Provider auto-deploy mekanizmaları bu sıralamayı garanti etmiyorsa birbirinden bağımsız açılmaz; Northflank workflow/release akışı migration sonucunu bekler. Deploy başarısızlığında ticket `DONE` sayılamaz. Destructive migration rollback yerine backup/recovery + fix-forward, uygulama için önceki uyumlu image/Vercel deployment geri dönüşü kullanılır.
+Provider auto-deploy mekanizmaları bu sıralamayı garanti etmiyorsa birbirinden bağımsız açılmaz; Railway workflow/release akışı migration sonucunu bekler. Deploy başarısızlığında ticket `DONE` sayılamaz. Destructive migration rollback yerine backup/recovery + fix-forward, uygulama için önceki uyumlu image/Vercel deployment geri dönüşü kullanılır.
 
 ## 4. Ticket Definition of Ready (DoR)
 
@@ -81,6 +81,9 @@ Provider auto-deploy mekanizmaları bu sıralamayı garanti etmiyorsa birbirinde
 ## 7. Deployment kanıtı ve external blocker sınırı
 
 - Hosting provider ayarı, GitHub protection ya da gerçek secret konfigürasyonu ek izin istiyorsa **yapılmış gibi davranılmaz**; gereken dış aksiyon ve `UNVERIFIED` kanıt açıkça yazılır.
-- FND-003 repository hazırlığı external hesap olmadan `REVIEW` olabilir; Northflank/Vercel/Supabase rollout ve smoke tamamlanmadan `DONE`, `DEPLOYED` veya `VERIFIED` olamaz.
+- FND-003 repository hazırlığı external hesap olmadan `REVIEW` olabilir; Railway/Vercel/Supabase rollout ve smoke tamamlanmadan `DONE`, `DEPLOYED` veya `VERIFIED` olamaz.
 - Supabase Auth environment sözleşmesinin bulunması JWT authentication/authorization'ın tamamlandığı anlamına gelmez; IAM-001 kapanana kadar bu açıkça kapsam dışıdır.
-- Northflank Developer Sandbox yalnız akademik demo ortamı olarak ele alınır; ticari production SLA/compliance sonucu çıkarılmaz.
+- Railway Developer Sandbox yalnız akademik demo ortamı olarak ele alınır; ticari production SLA/compliance sonucu çıkarılmaz.
+
+
+**Güncel FND-003 güvenlik sınırı:** frontend/vercel.json main Git deployments'ı kapatır. GitHub release-ready ve manual-release job'ları Railway release orchestration gerçek ortamda doğrulanana kadar fail-closed olur. Production migration veya promotion otomatik başlatılmaz.

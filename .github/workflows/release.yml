@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_sha:
-        description: Full commit SHA from main to release; defaults to the selected main revision
+        description: Full commit SHA from main; release remains blocked until the Railway release flow is verified
         required: false
         type: string
 
@@ -22,7 +22,7 @@ jobs:
       vars.DEPLOYMENT_AUTOMATION_ENABLED == 'true' &&
       github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
     environment: production
     env:
       RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
@@ -35,32 +35,23 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24.20.0
-
       - name: Verify release commit
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::RELEASE_SHA must be a full lowercase commit SHA."
             exit 1
           fi
-
           checked_out_sha="$(git rev-parse HEAD)"
           if [[ "$checked_out_sha" != "$RELEASE_SHA" ]]; then
             echo "::error::The checked-out commit does not match RELEASE_SHA."
             exit 1
           fi
-
           if ! git show-ref --verify --quiet refs/remotes/origin/main; then
             echo "::error::origin/main is unavailable for manual release verification."
             exit 1
           fi
-
           if ! git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main; then
             echo "::error::Manual releases must use a commit contained in origin/main."
             exit 1
@@ -69,15 +60,8 @@ jobs:
       - name: Test release gate helpers
         run: node --test scripts/release/*.test.mjs
 
-      - name: Run Northflank release workflow
+      - name: Fail closed until Railway production release is configured
         shell: bash
-        env:
-          NORTHFLANK_API_TOKEN: ${{ secrets.NORTHFLANK_API_TOKEN }}
-          NORTHFLANK_PROJECT_ID: ${{ vars.NORTHFLANK_PROJECT_ID }}
-          NORTHFLANK_WORKFLOW_ID: ${{ vars.NORTHFLANK_WORKFLOW_ID }}
-        run: node scripts/release/run-northflank-workflow.mjs
-
-      - name: Smoke production API readiness and revision
-        env:
-          PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
-        run: node scripts/release/verify-api-release.mjs
+        run: |
+          echo "::error::Manual production release is intentionally blocked until Railway production services, migration sequencing, and live smoke evidence are configured and verified."
+          exit 1

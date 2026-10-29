@@ -1,6 +1,6 @@
 # Sistem Mimarisi — Uygulama Tasarımı
 
-**Statü:** [HQ KARARI] Başlangıç mimarisi; scaffold ve CI doğrulandı, Northflank/Vercel/Supabase deployment hazırlığı incelemede ve live rollout henüz doğrulanmadı.
+**Statü:** [HQ KARARI] Railway staging API/Worker çalışır; ayrı production projesi boş. Vercel main auto-deploy ve production release gate güvenlik nedeniyle kapalı; production rollout doğrulanmadı.
 **Teknoloji listesi:** [`TECH_STACK.md`](TECH_STACK.md).  
 **İş kuralları kaynakları:** [`DOMAIN.md`](DOMAIN.md), [`RULE_ENGINE.md`](RULE_ENGINE.md), [`UX.md`](UX.md) — iş semantiklerini burada tekrar yazmayın.
 
@@ -9,10 +9,10 @@
 ```mermaid
 flowchart LR
   Analyst[Analyst Browser] --> Web[Next.js Web / Vercel]
-  Web -->|REST + JWT| API[Spring Boot API / Northflank]
+  Web -->|REST + JWT| API[Spring Boot API / Railway]
   Web -->|Supabase Auth login| Auth[Supabase Auth]
   API -->|TLS, jOOQ transactions| DB[(Supabase PostgreSQL)]
-  Worker[Spring Boot Worker / Northflank] <-->|Future claim jobs, read/write events| DB
+  Worker[Spring Boot Worker / Railway] <-->|Future claim jobs, read/write events| DB
   Worker -->|Future synthetic generator| DB
   API -.->|SSE events; polling fallback| Web
 ```
@@ -49,7 +49,7 @@ flowchart LR
 | `simulation` | Tekrar üretilebilir event paternleri ve rate kontrolü | Prod'a gerçek banka/veri entegrasyonu içermez |
 | `shared` | Ortak temeller, typed IDs, zaman/hata sözleşmeleri | Genel amaçlı servis yığınına dönüşmez |
 
-Her modülün HTTP/controller, service/domain, SQL/repository sınırı bellidir. Domain çekirdeği Spring HTTP veya Northflank'e bağlı olmayacak. **Ayrı microservice veya ağır Clean Architecture katmanları zorunlu değil**; test edilebilir servis ve package sınırları yeterli.
+Her modülün HTTP/controller, service/domain, SQL/repository sınırı bellidir. Domain çekirdeği Spring HTTP veya Railway'e bağlı olmayacak. **Ayrı microservice veya ağır Clean Architecture katmanları zorunlu değil**; test edilebilir servis ve package sınırları yeterli.
 
 ## 3. Yeni transaction değerlendirme yolu
 
@@ -92,18 +92,18 @@ flowchart TD
   PR[Ticket branch & PR] --> CI[GitHub Actions: web+Java+DB integration]
   CI -->|required green| Main[Protected main]
   Main --> Image[Build immutable backend image / release SHA]
-  Image --> DBM[Northflank migration job; run and wait]
-  DBM --> Runtime[Same revision: Northflank API + Worker rollout]
+  Image --> DBM[Railway migration job; run and wait]
+  DBM --> Runtime[Same revision: Railway API + Worker rollout]
   Runtime --> Ready[API readiness + Worker liveness]
   Ready --> Gate[GitHub release-ready check]
   Gate --> Web[Vercel production domain assignment]
   Web --> Smoke[Config + demo-safe smoke / SHA evidence]
 ```
 
-- **Hedef akışta** aynı main CI run'ındaki protected `release-ready` job'u `frontend-ci` ve `backend-ci` başarılarını bekler ve check bağlamı ile release SHA'nın aynı commit olduğunu doğrular. Northflank başlamadan önce ve provider smoke sonrasında GitHub'dan güncel main HEAD okunur; superseded veya doğrulanamayan revision fail-closed olur. Ardından immutable backend revision üretilir; Flyway job aynı revision ile başarıyla tamamlanmadan API/Worker rollout başlamaz. API readiness, `/actuator/info` exact release SHA, Worker canlılığı ve son latest-main guard görülmeden `release-ready` check başarılı olmaz. Vercel Git deployment production domain'i bu check'i bekleyen Deployment Check üzerinden alır. Manuel recovery farklı bir check adı taşır ve latest-main kısıtına bilinçli olarak tabi değildir. Harici provider entegrasyonları kurulmadığı için bu sıra bugün `VERIFIED` değildir.
-- Northflank'in bağımsız image-change auto-deploy davranışı migration ile yarışmamalıdır; tek release workflow build → migrate/wait → aynı revision deploy sırasını yönetir. Detaylar [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md)'dedir.
+- **Hedef akış** exact release SHA, migration success, API readiness + exact SHA, Worker heartbeat ve latest-main guard sırasını gerektirir. Bugünkü GitHub release workflows bilerek fail-closed'dur; Railway production service/migration orchestration henüz uygulanıp doğrulanmadı. DEPLOYMENT_AUTOMATION_ENABLED=true tek başına release başlatamaz.
+- Railway staging source/deploy davranışı production release policy'sinden ayrıdır. Production service'leri oluşturulunca bağımsız auto-deploy migration sırasını atlayamayacak şekilde yapılandırılmalıdır; ayrıntılar [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md)'dedir.
 - Vercel Deployment Checks erişimi yoksa production candidate `--skip-domain` ile smoke edilir ve yalnız başarıdan sonra promote edilir; bağımsız production domain auto-promotion açılmaz.
-- Vercel PR preview production DB credential'ı almaz ve production API'ye sessiz fallback yapmaz. Supabase staging ve production ayrı projelerdir. Developer Sandbox'taki iki service slotu API + Worker tarafından tüketildiğinden aynı anda iki ek staging JVM servisi varsayılmaz.
+- Vercel PR preview production DB credential'ı almaz ve production API'ye sessiz fallback yapmaz. Supabase staging ve production ayrı projelerdir. Railway production ayrı projedir ve henüz servis içermez.
 - İki ortamı karıştırma: local/demo verileri gerçek kurum verisi değildir. Migration geri dönüşü çoğu zaman ileri düzeltmeyle yapılır; otomatik destructive rollback'e güvenilmez.
 - Production/demo sistem başlangıcında fail-fast config, `/actuator/health/readiness`, Worker heartbeat ve deploy smoke gerekir; başarısız deploy'da ticket kapanmaz, eski uyumlu image'a dönme veya fix-forward uygulanır.
 
@@ -113,8 +113,8 @@ flowchart TD
 - **Lock yarışları:** aynı transaction'a iki actor eşzamanlı açma, expired lease yeniden sahiplenme, stale token ile mutation testleri.
 - **İdempotency:** worker tekrar işlemesi, deploy sırasında restart, duplicate event ve rule version snapshot testleri.
 - **Latency:** event üretiminden işlenmiş satıra ve UI'ya ulaşma süresini gösteren demo ölçümü; ilk hafta sayısal SLO uydurulmaz.
-- **Maliyet/kota:** Northflank API+Worker iki sürekli service slotunun tamamını kullanır. Migration ve opsiyonel smoke job iki job adayıdır. 0.2 vCPU/512 MiB ve 0.5 vCPU/1024 MiB kaynak adaylarının ücretsiz erişimi ve JVM yeterliliği gerçek hesap/test olmadan varsayılmaz. Supabase DB/backup/compute ve Vercel plan sınırları ayrıca kontrol edilir.
-- **Ortam sınıfı:** Northflank Developer Sandbox akademik canlı demo için değerlendirilebilir; ticari production SLA/compliance iddiası oluşturmaz.
+- **Maliyet/kota:** Railway servis/compute limitleri, Supabase DB/backup/compute ve Vercel plan sınırları gerçek hesapta kontrol edilir; ücretsiz erişim veya JVM kapasitesi ölçüm olmadan varsayılmaz.
+- **Ortam sınıfı:** Railway ve Supabase kurulumları akademik prototip için kullanılır; ticari production SLA/compliance iddiası oluşturmaz.
 
 ## 9. Kesinleştirilmesi gereken iş kuralları (mimari blocker değil)
 

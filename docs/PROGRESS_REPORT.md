@@ -18,7 +18,7 @@ Farklı ödeme işlem kanalları üzerinden akan sentetik olayların kural bazl�
 
 ## 3. Önerilen mimari özet
 
-Next.js 16 + TypeScript UI; Java 25 + Spring Boot 4.1.x modular monolith (API ve worker); PostgreSQL/Supabase; Vercel frontend, Northflank API/worker; GitHub Actions kalite kapıları. Deployment yalnız gerçek URL, revision ve smoke kanıtı üretildiğinde tamamlanmış raporlanır. Ayrıntılar `TECH_STACK.md`, `ARCHITECTURE.md` ve `DEPLOYMENT_RUNBOOK.md` dosyalarındadır.
+Next.js 16 + TypeScript UI; Java 25 + Spring Boot 4.1.x modular monolith (API ve worker); PostgreSQL/Supabase; Vercel frontend, Railway API/worker; GitHub Actions kalite kapıları. Railway staging canlıdır; ayrı production Railway projesi henüz servissizdir. Deployment yalnız gerçek URL, revision ve smoke kanıtı üretildiğinde tamamlanmış raporlanır. Ayrıntılar `TECH_STACK.md`, `ARCHITECTURE.md` ve `DEPLOYMENT_RUNBOOK.md` dosyalarındadır.
 
 ## 4. Üretilen artefaktlar
 
