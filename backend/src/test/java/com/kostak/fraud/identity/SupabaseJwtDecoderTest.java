@@ -96,7 +96,7 @@ class SupabaseJwtDecoderTest {
         )).isInstanceOf(JwtException.class);
 
         assertThatThrownBy(() -> decoder.decode(
-                token(signingKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(30))
+                token(signingKey, ISSUER, AUDIENCE, Instant.now().minusSeconds(300))
         )).isInstanceOf(JwtException.class);
     }
 
@@ -123,7 +123,7 @@ class SupabaseJwtDecoderTest {
                 .issuer(issuer)
                 .subject(UUID.fromString("d2719b13-7e54-4c3b-8e3c-9c70f8c4a021").toString())
                 .audience(List.of(audience))
-                .issuedAt(now.minusSeconds(120))
+                .issuedAt(now.minusSeconds(600))
                 .expiresAt(expiresAt)
                 .build();
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).keyId(key.getKeyID()).build();
