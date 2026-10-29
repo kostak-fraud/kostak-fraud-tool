@@ -145,6 +145,11 @@ jobs:
       - name: Test release gate helpers
         run: node --test scripts/release/*.test.mjs
 
+      - name: Verify release is latest main before rollout
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/verify-latest-main.mjs
+
       - name: Run Northflank release workflow
         shell: bash
         env:
@@ -157,3 +162,8 @@ jobs:
         env:
           PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
         run: node scripts/release/verify-api-release.mjs
+
+      - name: Verify release is still latest main
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/verify-latest-main.mjs

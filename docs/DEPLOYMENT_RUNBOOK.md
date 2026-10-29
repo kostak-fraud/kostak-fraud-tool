@@ -198,25 +198,30 @@ Tek-sorumlu otomasyon iki katmandan oluşur:
 
 1. `.github/workflows/ci.yml` içindeki `release-ready`, aynı `main` push çalıştırmasının `frontend-ci` ve `backend-ci` job'larını `needs` ile bekler. Ayrı bir `workflow_run` bağlamı kullanılmaz.
 2. Job `RELEASE_SHA`, `GITHUB_SHA` ve checkout SHA'nın birebir aynı olduğunu doğrular. Böylece art arda iki main commit'i geldiğinde check her zaman test edilen kendi revision'ına bağlı kalır.
-3. `DEPLOYMENT_AUTOMATION_ENABLED=true` değilse `release-ready` job'u `skipped` olur ve harici release tetiklenmez.
-4. Release job'u GitHub'ın protected `production` environment'ında çalışır; job/check adı tam olarak `release-ready` kalır.
-5. Workflow, `NORTHFLANK_API_TOKEN` secret'ı ve aşağıdaki repository variables ile Northflank workflow API'sini tetikler:
+3. Northflank tetiklenmeden hemen önce GitHub branch ref API'sinden güncel `main` HEAD okunur. `RELEASE_SHA` artık HEAD değilse veya ref doğrulanamıyorsa job fail-closed biter; superseded revision rollout başlatamaz.
+4. Northflank completion ve API smoke sonrasında aynı latest-main kontrolü job'un son adımı olarak tekrarlanır. Release sırasında yeni main commit'i geldiyse `release-ready` başarılı kapanamaz ve Vercel eski commit'i promote edemez.
+5. `DEPLOYMENT_AUTOMATION_ENABLED=true` değilse `release-ready` job'u `skipped` olur ve harici release tetiklenmez.
+6. Release job'u GitHub'ın protected `production` environment'ında çalışır; job/check adı tam olarak `release-ready` kalır.
+7. Workflow, `NORTHFLANK_API_TOKEN` secret'ı ve aşağıdaki repository variables ile Northflank workflow API'sini tetikler:
    - `NORTHFLANK_PROJECT_ID`
    - `NORTHFLANK_WORKFLOW_ID`
    - `PRODUCTION_API_BASE_URL`
-6. Northflank workflow'a `COMMIT_SHA` ve `BRANCH` arguments geçirilir. Trigger edilen run başarı/hata sonucuna kadar poll edilir; fire-and-forget başarı sayılmaz.
+8. Northflank workflow'a `COMMIT_SHA` ve `BRANCH` arguments geçirilir. Trigger edilen run başarı/hata sonucuna kadar poll edilir; fire-and-forget başarı sayılmaz.
+
+GitHub concurrency aynı anda iki release'i engeller fakat FIFO commit sırası garanti etmez. Bu nedenle concurrency tek başına ordering kontrolü sayılmaz; iki latest-main guard asıl stale-release fence'idir. İlk guard'da superseded olan job'un kontrollü sonucu başarısız check'tir: Northflank çağrılmaz ve Vercel Deployment Check geçmez. Release sırasında supersede olan job provider smoke'u tamamlasa bile son guard nedeniyle başarılı check üretemez; sıradaki güncel main release'i aynı concurrency grubunda çalışır.
 
 `.github/workflows/release.yml` içindeki `workflow_dispatch` yalnız kontrollü backend yeniden çalıştırma/kurtarma yoludur; seçilen full SHA'nın `origin/main` geçmişinde olduğu doğrulanmadan release başlatmaz. Job/check adı bilinçli olarak `manual-release`tir ve Vercel'in beklediği `release-ready` check'ini üretemez. Önceki revision'a manuel backend dönüşü frontend'i otomatik promote etmez; uyumluluk incelemesinden sonra karşılık gelen Vercel rollback/promote ayrıca ve açıkça yapılır. Tercih edilen genel rollback, `main` üzerinde revert/fix-forward commit'i oluşturup normal exact-SHA kapısından geçmektir.
 
 Northflank workflow'un kendi sırası:
 
-1. `main` commit SHA için backend image build başlat ve completion bekle.
-2. Exact image'ı migration job'a deploy et.
-3. Migration job'u çalıştır ve completion bekle.
-4. Başarı koşuluyla exact image'ı API ve Worker'a deploy et.
-5. API readiness ve Worker process/heartbeat condition'ını bekle.
-6. GitHub release workflow, `PRODUCTION_API_BASE_URL` üzerinden API readiness ile `/actuator/info` release SHA smoke'unu yapar.
-7. Northflank run başarılı olur, workflow arguments içindeki SHA/branch istekle eşleşir, readiness `UP` döner ve API'nin verdiği tam SHA istenen commit'le aynı olursa `release-ready` check başarılı olur.
+1. GitHub release job güncel `main` HEAD'in `RELEASE_SHA` olduğunu doğrular.
+2. `main` commit SHA için backend image build başlat ve completion bekle.
+3. Exact image'ı migration job'a deploy et.
+4. Migration job'u çalıştır ve completion bekle.
+5. Başarı koşuluyla exact image'ı API ve Worker'a deploy et.
+6. API readiness ve Worker process/heartbeat condition'ını bekle.
+7. GitHub release workflow, `PRODUCTION_API_BASE_URL` üzerinden API readiness ile `/actuator/info` release SHA smoke'unu yapar.
+8. GitHub release job güncel `main` HEAD'i tekrar doğrular. Northflank run başarılı olur, workflow arguments içindeki SHA/branch istekle eşleşir, readiness `UP` döner, API'nin verdiği tam SHA istenen commit'le aynı olur ve release hâlâ latest main ise `release-ready` check başarılı olur.
 
 URL, provider revision, commit SHA ve schema version release kanıtı olarak ayrıca kaydedilir. Mevcut GitHub workflow bu kanıtların tamamını tek başına persist ettiğini iddia etmez.
 
@@ -277,12 +282,12 @@ Hedef main release sırası:
 
 1. PR quality checks.
 2. Protected `main` merge ve başarılı `CI` workflow run.
-3. Aynı CI run'ında `release-ready` job'unun iki required job'u beklemesi; exact `GITHUB_SHA` eşleşmesi, `DEPLOYMENT_AUTOMATION_ENABLED=true` ve protected `production` environment gate.
+3. Aynı CI run'ında `release-ready` job'unun iki required job'u beklemesi; exact `GITHUB_SHA` eşleşmesi, latest-main preflight, `DEPLOYMENT_AUTOMATION_ENABLED=true` ve protected `production` environment gate.
 4. `COMMIT_SHA`/`BRANCH` ile Northflank workflow trigger ve completion poll.
 5. Immutable image/revision build.
 6. Controlled Flyway migration job.
 7. Exact revision API/Worker rollout ve API readiness + Worker liveness.
-8. GitHub API readiness + exact release SHA smoke; başarılı `release-ready` check.
+8. GitHub API readiness + exact release SHA smoke; ikinci latest-main guard; ancak hâlâ güncel revision ise başarılı `release-ready` check.
 9. Vercel Git deployment'ın Deployment Check sonrası production domain assignment'ı; özellik yoksa staged `--skip-domain` candidate → smoke → promote alternatifi.
 10. URL, schema version ve GitHub/Northflank/Vercel revision kaydı.
 
@@ -293,7 +298,7 @@ Hedef main release sırası:
 ### Repository/local kanıtı
 
 - Backend `./mvnw -B verify`.
-- Release workflow sözleşme testleri: automatic gate aynı CI SHA'sına bağlıdır; manuel recovery `release-ready` adı üretemez.
+- Release workflow sözleşme testleri: automatic gate aynı CI SHA'sına bağlıdır; provider rollout'un iki yanında latest-main guard vardır; iki hızlı push'ta eski geç tamamlanan run fail-closed olur; manuel recovery `release-ready` adı üretemez.
 - Frontend frozen install, lint, typecheck, test ve build.
 - Docker image build ve non-root runtime.
 - API mode startup + liveness/readiness + `/actuator/info` release SHA.

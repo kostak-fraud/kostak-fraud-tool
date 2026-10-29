@@ -12,7 +12,7 @@ Next.js web Vercel'de; Java API ve Worker iki ayrı Northflank servisinde; Postg
 
 Tek GitHub monorepo ve required GitHub Actions CI kullanılır. PR preview production DB/API'ye erişemez veya sessiz fallback yapamaz. User identity Supabase Auth JWT'dir; permission/tenant kontrolü Spring backend'de kalır. FND-003 yalnız auth environment sözleşmesini hazırlar, JWT doğrulama/authorization IAM-001 kapsamındadır. Ticket ancak main merge, gerçek provider rollout, schema version ve smoke kanıtından sonra biter.
 
-Otomatik production gate, ayrı `workflow_run` bağlamı yerine aynı `main` push CI run'ında iki required check'i bekleyen `release-ready` job'udur. Job, GitHub check SHA, release SHA ve checkout SHA eşitliğini doğrular. Manuel recovery farklı `manual-release` check adı taşır ve Vercel production promotion kapısını açamaz; bu ayrım hızlı ardışık merge veya eski revision recovery sırasında yanlış commit'in yayınlanmasını engeller.
+Otomatik production gate, ayrı `workflow_run` bağlamı yerine aynı `main` push CI run'ında iki required check'i bekleyen `release-ready` job'udur. Job, GitHub check SHA, release SHA ve checkout SHA eşitliğini doğrular. Concurrency commit sırasını garanti etmediği için Northflank rollout öncesinde ve provider smoke sonrasında güncel GitHub main HEAD ayrıca doğrulanır; superseded revision fail-closed olur. Manuel recovery farklı `manual-release` check adı taşır, latest-main kısıtına tabi değildir ve Vercel production promotion kapısını açamaz; bu ayrım hızlı ardışık merge veya eski revision recovery sırasında yanlış commit'in yayınlanmasını engeller.
 
 ### 2026-10-29 değişiklik kaydı
 

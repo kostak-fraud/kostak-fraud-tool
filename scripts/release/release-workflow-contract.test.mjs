@@ -17,6 +17,20 @@ test("automatic release-ready belongs to the exact successful main CI commit", (
   assert.doesNotMatch(ciWorkflow, /workflow_run/);
 });
 
+test("automatic rollout is fenced by latest-main guards before and after provider release", () => {
+  const firstGuard = ciWorkflow.indexOf("- name: Verify release is latest main before rollout");
+  const rollout = ciWorkflow.indexOf("- name: Run Northflank release workflow");
+  const smoke = ciWorkflow.indexOf("- name: Smoke production API readiness and revision");
+  const finalGuard = ciWorkflow.indexOf("- name: Verify release is still latest main");
+  const guardInvocations = ciWorkflow.match(
+    /run: node scripts\/release\/verify-latest-main\.mjs/g,
+  );
+
+  assert.ok(firstGuard >= 0 && firstGuard < rollout);
+  assert.ok(rollout < smoke && smoke < finalGuard);
+  assert.equal(guardInvocations?.length, 2);
+});
+
 test("manual recovery cannot publish the release-ready deployment check", () => {
   assert.match(manualWorkflow, /\n  manual-release:\n    name: manual-release\n/);
   assert.doesNotMatch(manualWorkflow, /workflow_run/);
