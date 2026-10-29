@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -125,6 +126,22 @@ class IdentityAuthorizationIntegrationTest {
         mockMvc.perform(get("/api/v1/identity/memberships/{membershipId}", ADMIN_B_MEMBERSHIP)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(jwt -> jwt.subject(ADMIN_A_ID.toString()))))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void exposesChannelAwareFieldMetadataOnlyToAuthorizedTenantMembers() throws Exception {
+        mockMvc.perform(get("/api/v1/transactions/fields")
+                        .param("channel", "wallet")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(jwt -> jwt.subject(VIEWER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"name\":\"amount\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"name\":\"sender_account_ref\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("\"name\":\"is_3ds\""))));
+
+        mockMvc.perform(get("/api/v1/transactions/fields")
+                        .param("channel", "unknown")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(jwt -> jwt.subject(VIEWER_ID.toString()))))
+                .andExpect(status().isBadRequest());
     }
 
     private void addMembership(UUID membershipId, UUID tenantId, UUID userId, String role) {

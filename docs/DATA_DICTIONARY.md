@@ -50,3 +50,8 @@
 5. Backend API, generator ve frontend registry'nin aynı şemadan beslendiğini doğrulayan sözleşme testi.
 
 **Bilinçli sınır:** Bu taslak akademik mock domain modeli olup gerçek ödeme/bankacılık entegrasyon şeması olarak kullanılmaz.
+
+## Uygulama eşlemesi (2026-10-29)
+- Tasarım sözlüğü backend'de `TransactionFieldRegistry` üzerinden tipli field metadata olarak yayımlanır: `GET /api/v1/transactions/fields` ve `?channel=wallet|pos|physical_pos`.
+- Kalıcı sentetik tablo Flyway `V3__create_transactions.sql` migration'ında kurulur. Alan adları gerçek kurumsal şema değildir; gerçek alan sözlüğü geldiğinde DATA-REVIEW yapılmalıdır.
+- `tenant_id`, `source_reference` ve `idempotency_key` UI filtre metadata'sına dahil edilmez. Bütün demo referansları `MOCK-` ile başlar; kart alanları PAN değildir.
