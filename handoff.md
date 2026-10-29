@@ -65,6 +65,13 @@
 | `pnpm test` | PASS — 9 dosya, 32 test |
 | `pnpm build` | PASS — Next.js 16.4.2 production build |
 
+PR `#15` GitHub run `40827732416`:
+
+- `frontend-ci`: PASS (58 s)
+- `backend-ci`: PASS (1 m 31 s)
+- Vercel: PASS / deployment ready
+- `release-ready`: SKIPPED, mevcut fail-closed production policy ile uyumlu
+
 Ek lokal missing-config smoke:
 
 - `GET /transactions?channel=wallet` → `307 /login?configuration=missing&next=%2Ftransactions%3Fchannel%3Dwallet`
@@ -92,7 +99,7 @@ Güncel resmî Next.js authentication/proxy ve Supabase SSR client/changelog say
 - Preflight bilgisindeki staging durumuna göre Auth user `0`, tenant `0`, membership `0`, aktif membership `0`, transaction `0`.
 - Bu nedenle gerçek staging `login → identity` başarı smoke'u yapılmadı: **UNVERIFIED**.
 - Staging'de test user, tenant, membership veya transaction oluşturulmadı.
-- Preview deployment URL'si bu handoff hazırlanırken oluşmadı; URL/SHA: **UNVERIFIED / yok**.
+- Preview deployment: `https://kostak-fraud-tool-git-feat-iam-00-b60ccd-omer-akkiyals-projects.vercel.app` at `d43e078aa6c2b3bbd0315a8cef2f702ff8774c67`; Vercel check PASS. Doğrudan HTTP isteği Vercel koruma kabuğunu döndürdüğü için uygulama içi login smoke'u manuel olarak doğrulanmadı.
 - Güncel Railway staging API domain'i promptta `https://kostak-fraud-staging.up.railway.app`; `docs/DEPLOYMENT_RUNBOOK.md` hâlâ `https://kostak-fraud-tool-production.up.railway.app` yazıyor. Ticket sınırı gereği runbook değiştirilmedi.
 - `backlog/IAM-001.md` `REVIEW`, `backlog/TX-003.md` `PLANNED` gösterirken main kodunda backend identity/transaction list implementasyonları bulunduğu yönündeki statü drift'i not edildi; kapsam dışı status düzeltmesi yapılmadı.
 
