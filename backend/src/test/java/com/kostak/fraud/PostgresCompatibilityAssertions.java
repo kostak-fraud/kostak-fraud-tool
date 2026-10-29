@@ -38,7 +38,7 @@ final class PostgresCompatibilityAssertions {
 
         Flyway flyway = migrator(postgres);
         flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
 
         try (var connection = DriverManager.getConnection(
                 postgres.getJdbcUrl(),
@@ -60,6 +60,14 @@ final class PostgresCompatibilityAssertions {
                     .from(table(name("role_permissions")))
                     .fetchOne(0, Integer.class);
             assertThat(permissionCount).isEqualTo(17);
+
+            Integer transactionIndexCount = dsl
+                    .selectCount()
+                    .from(table(name("pg_indexes")))
+                    .where(org.jooq.impl.DSL.field(name("indexname"), String.class)
+                            .eq("transactions_tenant_channel_occurred_id_idx"))
+                    .fetchOne(0, Integer.class);
+            assertThat(transactionIndexCount).isEqualTo(1);
         }
 
         flyway.migrate();
