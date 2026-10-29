@@ -61,6 +61,8 @@ public final class RuntimePreflight {
         validateFlywaySetting(mode, argumentValue(args, "spring.flyway.enabled"),
                 "command line spring.flyway.enabled");
 
+        validateSimulationSetting(appEnvironment, environment.get("APP_SIMULATION_ENABLED"));
+
         List<String> corsOrigins = parseAndValidateCorsOrigins(
                 environment.get("APP_CORS_ALLOWED_ORIGINS"),
                 appEnvironment
@@ -243,6 +245,19 @@ public final class RuntimePreflight {
             throw new IllegalArgumentException(
                     "SPRING_DATASOURCE_URL must set sslmode=require, verify-ca, or verify-full"
             );
+        }
+    }
+
+    private static void validateSimulationSetting(String appEnvironment, String configuredValue) {
+        if (configuredValue == null || configuredValue.isBlank()) {
+            return;
+        }
+        String normalized = configuredValue.trim().toLowerCase(Locale.ROOT);
+        if (!normalized.equals("true") && !normalized.equals("false")) {
+            throw new IllegalArgumentException("APP_SIMULATION_ENABLED must be true or false");
+        }
+        if ("production".equals(appEnvironment) && Boolean.parseBoolean(normalized)) {
+            throw new IllegalArgumentException("APP_SIMULATION_ENABLED must be false in production");
         }
     }
 

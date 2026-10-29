@@ -55,3 +55,9 @@
 - Tasarım sözlüğü backend'de `TransactionFieldRegistry` üzerinden tipli field metadata olarak yayımlanır: `GET /api/v1/transactions/fields` ve `?channel=wallet|pos|physical_pos`.
 - Kalıcı sentetik tablo Flyway `V3__create_transactions.sql` migration'ında kurulur. Alan adları gerçek kurumsal şema değildir; gerçek alan sözlüğü geldiğinde DATA-REVIEW yapılmalıdır.
 - `tenant_id`, `source_reference` ve `idempotency_key` UI filtre metadata'sına dahil edilmez. Bütün demo referansları `MOCK-` ile başlar; kart alanları PAN değildir.
+
+
+## TX-002 evaluation state ve generator kontrolü
+- Flyway V4 ile transactions.evaluation_state (pending/processing/processed/failed) eklenir; bu alan analistin gördüğü review_status değildir.
+- simulation_controls tenant başına seed, enabled, rate_per_second ve kalıcı next_sequence tutar. Varsayılan disabled; üretim ve sequence ilerlemesi tek DB transaction'ında yapılır.
+- Global APP_SIMULATION_ENABLED varsayılan false'tur; production'da true olarak başlatılması RuntimePreflight tarafından reddedilir. Tenant admin kontrol endpoint'i yalnız simülasyonun açık olduğu ortamlarda start/stop ve 1–10 event/s hızını değiştirir.

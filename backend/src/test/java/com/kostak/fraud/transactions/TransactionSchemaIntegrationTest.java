@@ -1,5 +1,7 @@
 package com.kostak.fraud.transactions;
 
+import com.kostak.fraud.simulation.SimulationGeneratorService;
+import com.kostak.fraud.simulation.SyntheticTransactionFactory;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
