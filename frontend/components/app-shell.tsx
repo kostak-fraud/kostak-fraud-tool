@@ -1,89 +1,150 @@
-import { ShieldCheck } from "lucide-react";
+"use client";
 
-import { Button } from "@/components/ui/button";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import {
+  ArrowLeftRight,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
+} from "lucide-react";
 
 const navigation = [
-  { label: "Overview", href: "#foundation-overview", active: true },
-  { label: "Transactions", href: "#planned-areas", active: false },
-  { label: "Rules", href: "#planned-areas", active: false },
-];
+  { key: "transactions", label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
+  { key: "rules", label: "Rules", href: "/rules", icon: BookOpen },
+] as const;
 
-export function AppShell() {
+type NavigationKey = (typeof navigation)[number]["key"];
+
+type AppShellProps = {
+  activePage?: NavigationKey | null;
+  pageTitle: string;
+  pageDescription: string;
+  children: ReactNode;
+};
+
+export function AppShell({
+  activePage = "transactions",
+  pageTitle,
+  pageDescription,
+  children,
+}: AppShellProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div
+      className={
+        collapsed
+          ? "min-h-screen lg:grid lg:grid-cols-[76px_minmax(0,1fr)]"
+          : "min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]"
+      }
+    >
+      <a
+        className="sr-only z-50 rounded-md bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] shadow-lg focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        href="#main-content"
+      >
+        Skip to main content
+      </a>
+
       <aside
         aria-label="Application sidebar"
-        className="border-b border-[var(--border)] bg-[var(--surface)] px-6 py-6 lg:min-h-screen lg:border-b-0 lg:border-r"
+        className={[
+          "flex flex-col border-b border-[var(--border)] bg-[var(--surface)] py-5 lg:min-h-screen lg:border-b-0 lg:border-r",
+          collapsed ? "px-3" : "px-5",
+        ].join(" ")}
       >
-        <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-[var(--radius)] bg-[var(--primary)] text-[var(--primary-foreground)]">
+        <div className={["flex min-h-11 items-center gap-3", collapsed ? "justify-center" : ""].join(" ")}>
+          <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius)] bg-[var(--primary)] text-[var(--primary-foreground)]">
             <ShieldCheck aria-hidden="true" className="size-5" />
           </span>
-          <div>
-            <p className="font-semibold">Kostak</p>
-            <p className="text-sm text-[var(--text-secondary)]">Fraud Tool</p>
-          </div>
+          {!collapsed && (
+            <div>
+              <p className="font-semibold leading-5">Kostak</p>
+              <p className="text-sm text-[var(--text-secondary)]">Fraud Monitoring</p>
+            </div>
+          )}
         </div>
 
-        <nav aria-label="Primary navigation" className="mt-8">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-            Workspace
-          </p>
-          <ul className="grid gap-2">
-            {navigation.map((item) => (
-              <li key={item.label}>
-                <a
-                  aria-current={item.active ? "page" : undefined}
-                  className="flex min-h-11 items-center rounded-[var(--radius)] px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] aria-[current=page]:bg-[var(--surface-muted)] aria-[current=page]:text-[var(--primary)]"
-                  href={item.href}
-                >
-                  {item.label}
-                </a>
-              </li>
-            ))}
+        <div
+          className={[
+            "mt-8 flex min-h-11 items-center",
+            collapsed ? "justify-center" : "justify-between",
+          ].join(" ")}
+        >
+          {!collapsed && (
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              Workspace
+            </p>
+          )}
+          <button
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            aria-controls="primary-navigation"
+            className="grid size-10 shrink-0 place-items-center rounded-[var(--radius)] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+            onClick={() => setCollapsed((current) => !current)}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            type="button"
+          >
+            {collapsed ? (
+              <ChevronRight aria-hidden="true" className="size-5" />
+            ) : (
+              <ChevronLeft aria-hidden="true" className="size-5" />
+            )}
+          </button>
+        </div>
+
+        <nav aria-label="Primary navigation" className="mt-3" id="primary-navigation">
+          <ul className="grid gap-1.5">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const active = activePage === item.key;
+
+              return (
+                <li key={item.key}>
+                  <Link
+                    aria-current={active ? "page" : undefined}
+                    aria-label={item.label}
+                    className={[
+                      "flex min-h-11 items-center gap-3 rounded-[var(--radius)] px-3 text-sm font-medium transition-colors",
+                      "text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]",
+                      active
+                        ? "bg-[var(--surface-muted)] text-[var(--primary)]"
+                        : "",
+                      collapsed ? "justify-center px-0" : "",
+                    ].join(" ")}
+                    href={item.href}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <Icon aria-hidden="true" className="size-5 shrink-0" />
+                    <span className={collapsed ? "sr-only" : ""}>{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
+
+        {!collapsed && (
+          <div className="mt-auto hidden border-t border-[var(--border)] pt-5 text-xs leading-5 text-[var(--text-secondary)] lg:block">
+            Analyst workspace
+            <p className="mt-1">Review activity across payment channels.</p>
+          </div>
+        )}
       </aside>
 
-      <main className="min-w-0 px-6 py-8 sm:px-10 lg:px-14 lg:py-12">
-        <div className="mx-auto max-w-5xl">
-          <header className="border-b border-[var(--border)] pb-8">
-            <p className="text-sm font-semibold text-[var(--primary)]">Foundation scaffold</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Overview</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--text-secondary)]">
-              The application shell is ready for the product modules that will be delivered in later tickets.
+      <main className="min-w-0 px-4 py-6 sm:px-8 lg:px-10 lg:py-8" id="main-content">
+        <div className="mx-auto max-w-[1600px]">
+          <header className="mb-6 border-b border-[var(--border)] pb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+              Workspace / {pageTitle}
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{pageTitle}</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)] sm:text-base">
+              {pageDescription}
             </p>
           </header>
-
-          <section
-            aria-labelledby="foundation-heading"
-            className="mt-8 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm sm:p-8"
-            id="foundation-overview"
-          >
-            <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
-              <div>
-                <p className="text-sm font-semibold text-[var(--success)]">Scaffold ready</p>
-                <h2 className="mt-2 text-xl font-semibold" id="foundation-heading">
-                  A neutral starting point
-                </h2>
-                <p className="mt-3 max-w-2xl leading-7 text-[var(--text-secondary)]">
-                  Navigation, layout, theme tokens, and accessible focus states are in place. No fraud workflow is simulated on this page.
-                </p>
-              </div>
-              <Button asChild variant="outline">
-                <a href="#planned-areas">View planned areas</a>
-              </Button>
-            </div>
-          </section>
-
-          <section aria-labelledby="planned-heading" className="mt-8" id="planned-areas">
-            <h2 className="text-lg font-semibold" id="planned-heading">
-              Planned product areas
-            </h2>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Transactions and rules will be implemented by their dedicated backlog tickets.
-            </p>
-          </section>
+          {children}
         </div>
       </main>
     </div>
