@@ -16,6 +16,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -361,7 +362,7 @@ class TransactionListIntegrationTest {
                           FALSE, ?, 'in', ?)
                 """,
                 id, tenantId, "MOCK-SRC-" + suffix, "MOCK-IDEM-" + suffix,
-                occurredAt, occurredAt.plusSeconds(1), new BigDecimal("42.50"),
+                Timestamp.from(occurredAt), Timestamp.from(occurredAt.plusSeconds(1)), new BigDecimal("42.50"),
                 "MOCK-CUST-" + suffix, "MOCK-ACCT-" + suffix, evaluationState
         );
     }
@@ -376,7 +377,7 @@ class TransactionListIntegrationTest {
                 ) VALUES (?, ?, 'pos', ?, ?, ?, ?, 15.25, 'TRY', ?, ?, ?, 'payment', TRUE, ?)
                 """,
                 id, tenantId, "MOCK-SRC-" + suffix, "MOCK-IDEM-" + suffix,
-                occurredAt, occurredAt.plusSeconds(1), "MOCK-CUST-" + suffix,
+                Timestamp.from(occurredAt), Timestamp.from(occurredAt.plusSeconds(1)), "MOCK-CUST-" + suffix,
                 "MOCK-CARD-" + suffix, "MOCK-MERCH-" + suffix, evaluationState
         );
     }
@@ -391,7 +392,7 @@ class TransactionListIntegrationTest {
                 ) VALUES (?, ?, 'physical_pos', ?, ?, ?, ?, 18.75, 'TRY', ?, ?, ?, 'purchase', ?, ?)
                 """,
                 id, tenantId, "MOCK-SRC-" + suffix, "MOCK-IDEM-" + suffix,
-                occurredAt, occurredAt.plusSeconds(1), "MOCK-CUST-" + suffix,
+                Timestamp.from(occurredAt), Timestamp.from(occurredAt.plusSeconds(1)), "MOCK-CUST-" + suffix,
                 "MOCK-CARD-" + suffix, "MOCK-MERCH-" + suffix, "MOCK-TERM-" + suffix,
                 evaluationState
         );
