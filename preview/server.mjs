@@ -29,7 +29,7 @@ const fullName = () => `${choice(firstNames)} ${choice(lastNames)}`;
 const randomDigits = length => Array.from({ length }, () => Math.floor(Math.random() * 10)).join("");
 const iban = () => `TR${Math.floor(10 + Math.random() * 90)}${randomDigits(22)}`;
 const pastDate = (minYears, maxYears) => new Date(Date.now() - between(minYears, maxYears) * 365.25 * 24 * 60 * 60 * 1000).toISOString();
-const slug = value => String(value).toLocaleLowerCase("tr-TR").replaceAll("�", "i").replaceAll("�", "s").replaceAll("�", "g").replaceAll("�", "u").replaceAll("�", "o").replaceAll("�", "c").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "");
+const slug = value => String(value).toLocaleLowerCase("tr-TR").replaceAll("ı", "i").replaceAll("ş", "s").replaceAll("ğ", "g").replaceAll("ü", "u").replaceAll("ö", "o").replaceAll("ç", "c").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "");
 
 function enrichWalletTransaction(tx) {
   if (tx.channel !== "WALLET") return tx;
@@ -676,14 +676,14 @@ function claim(tx, actor) {
   const final = ["FRAUD", "NOT_FRAUD"].includes(tx.reviewStatus);
   const free = !tx.lockOwner || new Date(tx.lockExpiresAt) < new Date() || tx.lockOwner === actor;
   if (free && canEdit(actor)) {
-    if (tx.lockOwner !== actor) audit(tx, actor, "ASSIGNED", "��lem inceleme i�in atand�");
+    if (tx.lockOwner !== actor) audit(tx, actor, "ASSIGNED", "İşlem inceleme için atandı");
     tx.lockOwner = actor; tx.lockExpiresAt = new Date(Date.now() + 300000).toISOString(); tx.assignedAnalyst = actor;
     if (!final) tx.reviewStatus = "IN_REVIEW";
   }
 }
 function assertEditable(tx, actor) {
-  if (!canEdit(actor)) return "Bu kullan�c� salt okunur";
-  if (tx.lockOwner && new Date(tx.lockExpiresAt) > new Date() && tx.lockOwner !== actor) return "��lem ba�ka bir analist taraf�ndan inceleniyor";
+  if (!canEdit(actor)) return "Bu kullanıcı salt okunur";
+  if (tx.lockOwner && new Date(tx.lockExpiresAt) > new Date() && tx.lockOwner !== actor) return "İşlem başka bir analist tarafından inceleniyor";
   tx.lockOwner = actor; tx.lockExpiresAt = new Date(Date.now() + 300000).toISOString(); tx.assignedAnalyst = actor; return null;
 }
 
@@ -756,7 +756,7 @@ async function api(req, res, url) {
   }
   if (path === "/api/views/default" && method === "GET") {
     const channel = url.searchParams.get("channel");
-    if (!["WALLET", "POS", "PHYSICAL_POS"].includes(channel)) return json(res, 400, { message: "Ge�ersiz kanal" });
+    if (!["WALLET", "POS", "PHYSICAL_POS"].includes(channel)) return json(res, 400, { message: "Geçersiz kanal" });
     const view = state.defaultViews.find(item => item.user === actor && item.channel === channel) || null;
     return json(res, 200, { view });
   }
@@ -772,7 +772,7 @@ async function api(req, res, url) {
     );
     const validOrder = columnOrder.length === channelFields.size &&
       new Set(columnOrder).size === channelFields.size && columnOrder.every(field => channelFields.has(field));
-    if (!validChannel || !validFilters || !validOrder) return json(res, 400, { message: "Varsay�lan g�r�n�m ge�ersiz" });
+    if (!validChannel || !validFilters || !validOrder) return json(res, 400, { message: "Varsayılan görünüm geçersiz" });
     const savedView = { user: actor, channel, filters, columnOrder, updatedAt: now() };
     const existingIndex = state.defaultViews.findIndex(item => item.user === actor && item.channel === channel);
     if (existingIndex >= 0) state.defaultViews[existingIndex] = savedView; else state.defaultViews.push(savedView);
@@ -786,8 +786,8 @@ async function api(req, res, url) {
     try {
       const parsed = JSON.parse(url.searchParams.get("filters") || "[]");
       if (Array.isArray(parsed) && parsed.length <= 60) columnFilters = parsed;
-      else return json(res, 400, { message: "Ge�ersiz kolon filtreleri" });
-    } catch { return json(res, 400, { message: "Kolon filtreleri okunamad�" }); }
+      else return json(res, 400, { message: "Geçersiz kolon filtreleri" });
+    } catch { return json(res, 400, { message: "Kolon filtreleri okunamadı" }); }
     const items = state.transactions.filter(t =>
       (!channel || t.channel === channel) &&
       (!status || t.reviewStatus === status) &&
@@ -798,12 +798,12 @@ async function api(req, res, url) {
     return json(res, 200, { content: items.slice(page*size, page*size+size), totalElements: items.length, totalPages: Math.ceil(items.length/size), number: page, size, first: page===0, last: page>=Math.ceil(items.length/size)-1 });
   }
   const txMatch = path.match(/^\/api\/transactions\/([^/]+)$/);
-  if (txMatch && method === "GET") { const tx = txById(txMatch[1]); if (!tx) return json(res,404,{message:"��lem bulunamad�"}); claim(tx,actor); await save(); return json(res,200,detail(tx,actor)); }
+  if (txMatch && method === "GET") { const tx = txById(txMatch[1]); if (!tx) return json(res,404,{message:"İşlem bulunamadı"}); claim(tx,actor); await save(); return json(res,200,detail(tx,actor)); }
   const commentMatch = path.match(/^\/api\/transactions\/([^/]+)\/comments$/);
-  if (commentMatch && method === "POST") { const tx=txById(commentMatch[1]); if(!tx)return json(res,404,{message:"��lem bulunamad�"}); const denied=assertEditable(tx,actor); if(denied)return json(res,409,{message:denied}); const input=await body(req); if(!String(input.content||"").trim())return json(res,400,{message:"Yorum bo� olamaz"}); state.comments.push({id:randomUUID(),transactionId:tx.id,author:actor,content:String(input.content).trim(),createdAt:now()}); audit(tx,actor,"COMMENT_ADDED",String(input.content).trim()); await save(); return json(res,200,detail(tx,actor)); }
+  if (commentMatch && method === "POST") { const tx=txById(commentMatch[1]); if(!tx)return json(res,404,{message:"İşlem bulunamadı"}); const denied=assertEditable(tx,actor); if(denied)return json(res,409,{message:denied}); const input=await body(req); if(!String(input.content||"").trim())return json(res,400,{message:"Yorum boş olamaz"}); state.comments.push({id:randomUUID(),transactionId:tx.id,author:actor,content:String(input.content).trim(),createdAt:now()}); audit(tx,actor,"COMMENT_ADDED",String(input.content).trim()); await save(); return json(res,200,detail(tx,actor)); }
   const decisionMatch = path.match(/^\/api\/transactions\/([^/]+)\/decision$/);
-  if (decisionMatch && method === "POST") { const tx=txById(decisionMatch[1]); if(!tx)return json(res,404,{message:"��lem bulunamad�"}); const denied=assertEditable(tx,actor); if(denied)return json(res,409,{message:denied}); const input=await body(req); if(!["FRAUD","NOT_FRAUD","ON_HOLD"].includes(input.status))return json(res,400,{message:"Ge�ersiz karar"}); tx.reviewStatus=input.status;tx.decisionBy=actor;if(input.status!=="ON_HOLD"){tx.lockOwner=null;tx.lockExpiresAt=null}audit(tx,actor,"DECISION",input.status);await save();return json(res,200,detail(tx,actor)); }
-  if (path === "/api/transactions/bulk-decision" && method === "POST") { const input=await body(req); if(!canEdit(actor))return json(res,403,{message:"Bu kullan�c� salt okunur"});let updated=0;for(const id of input.ids||[]){const tx=txById(id);if(!tx)continue;const locked=tx.lockOwner&&new Date(tx.lockExpiresAt)>new Date()&&tx.lockOwner!==actor;if(locked)continue;tx.reviewStatus=input.status;tx.decisionBy=actor;tx.assignedAnalyst=actor;tx.lockOwner=null;tx.lockExpiresAt=null;audit(tx,actor,"BULK_DECISION",input.status);updated++}await save();return json(res,200,{updated}); }
+  if (decisionMatch && method === "POST") { const tx=txById(decisionMatch[1]); if(!tx)return json(res,404,{message:"İşlem bulunamadı"}); const denied=assertEditable(tx,actor); if(denied)return json(res,409,{message:denied}); const input=await body(req); if(!["FRAUD","NOT_FRAUD","ON_HOLD"].includes(input.status))return json(res,400,{message:"Geçersiz karar"}); tx.reviewStatus=input.status;tx.decisionBy=actor;if(input.status!=="ON_HOLD"){tx.lockOwner=null;tx.lockExpiresAt=null}audit(tx,actor,"DECISION",input.status);await save();return json(res,200,detail(tx,actor)); }
+  if (path === "/api/transactions/bulk-decision" && method === "POST") { const input=await body(req); if(!canEdit(actor))return json(res,403,{message:"Bu kullanıcı salt okunur"});let updated=0;for(const id of input.ids||[]){const tx=txById(id);if(!tx)continue;const locked=tx.lockOwner&&new Date(tx.lockExpiresAt)>new Date()&&tx.lockOwner!==actor;if(locked)continue;tx.reviewStatus=input.status;tx.decisionBy=actor;tx.assignedAnalyst=actor;tx.lockOwner=null;tx.lockExpiresAt=null;audit(tx,actor,"BULK_DECISION",input.status);updated++}await save();return json(res,200,{updated}); }
   if (path === "/api/rules" && method === "GET") return json(res,200,[...state.rules].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
   if (path === "/api/rules" && method === "POST") {
     const input = await body(req), scoreContribution = Number(input.scoreContribution);
@@ -827,12 +827,12 @@ async function api(req, res, url) {
   if(path==="/api/generator/generate"&&method==="POST"){const count=Math.min(250,Math.max(1,Number(url.searchParams.get("count")||12))),channel=url.searchParams.get("channel");for(let i=0;i<count;i++)state.transactions.push(makeTransaction(channel||undefined,i===0));await save();return json(res,200,{generated:count})}
   if(path==="/api/generator/start"&&method==="POST"){state.generator.running=true;state.generator.rate=Math.min(20,Math.max(1,Number(url.searchParams.get("rate")||2)));startStream();await save();return json(res,200,state.generator)}
   if(path==="/api/generator/stop"&&method==="POST"){state.generator.running=false;if(stream){clearInterval(stream);stream=null}await save();return json(res,200,state.generator)}
-  return json(res,404,{message:"Endpoint bulunamad�"});
+  return json(res,404,{message:"Endpoint bulunamadı"});
 }
 
 function startStream(){if(stream)clearInterval(stream);stream=setInterval(async()=>{for(let i=0;i<state.generator.rate;i++)state.transactions.push(makeTransaction());await save()},1500)}
 async function staticFile(res,path){const relative=path==="/"||/^\/Personal\/[^/]+$/i.test(path)?"index.html":path.slice(1);const target=join(publicDir,relative);if(!target.startsWith(publicDir)||!existsSync(target))return false;const data=await readFile(target);const types={".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8",".svg":"image/svg+xml"};res.writeHead(200,{"Content-Type":types[extname(target)]||"application/octet-stream"});res.end(data);return true}
 
 await load();
-const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,`http://${req.headers.host}`);if(url.pathname.startsWith("/api/"))return await api(req,res,url);if(!await staticFile(res,url.pathname))json(res,404,{message:"Dosya bulunamad�"})}catch(error){console.error(error);json(res,500,{message:error.message||"Internal error"})}});
+const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,`http://${req.headers.host}`);if(url.pathname.startsWith("/api/"))return await api(req,res,url);if(!await staticFile(res,url.pathname))json(res,404,{message:"Dosya bulunamadı"})}catch(error){console.error(error);json(res,500,{message:error.message||"Internal error"})}});
 server.listen(port,"127.0.0.1",()=>console.log(`Kostak Fraud Tool: http://localhost:${port}`));

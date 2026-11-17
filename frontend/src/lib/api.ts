@@ -10,7 +10,7 @@ async function request<T>(path: string, user: string, init?: RequestInit): Promi
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.message ?? `API hatas� (${response.status})`);
+    throw new Error(body.message ?? `API hatası (${response.status})`);
   }
   return response.json() as Promise<T>;
 }

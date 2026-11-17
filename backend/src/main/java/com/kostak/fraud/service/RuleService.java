@@ -41,7 +41,7 @@ public class RuleService {
     public RuleEntity update(String id, RuleInput input) {
         validate(input);
         RuleEntity rule = rules.findById(id).filter(r -> tenantId.equals(r.tenantId))
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kural bulunamad�"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kural bulunamadı"));
         apply(rule, input);
         rule.version++;
         rule.updatedAt = Instant.now();
@@ -51,7 +51,7 @@ public class RuleService {
     @Transactional
     public RuleEntity toggle(String id) {
         RuleEntity rule = rules.findById(id).filter(r -> tenantId.equals(r.tenantId))
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kural bulunamad�"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kural bulunamadı"));
         rule.active = !rule.active;
         rule.version++;
         rule.updatedAt = Instant.now();
@@ -59,10 +59,10 @@ public class RuleService {
     }
 
     private void validate(RuleInput input) {
-        if (input.name() == null || input.name().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kural ad� gerekli");
+        if (input.name() == null || input.name().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kural adı gerekli");
         if (!FIELDS.contains(input.fieldName())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Desteklenmeyen alan");
-        if (input.scoreContribution() < 1 || input.scoreContribution() > 100) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Puan 1-100 olmal�");
-        if (input.expectedValue() == null || input.expectedValue().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kar��la�t�rma de�eri gerekli");
+        if (input.scoreContribution() < 1 || input.scoreContribution() > 100) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Puan 1-100 olmalı");
+        if (input.expectedValue() == null || input.expectedValue().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Karşılaştırma değeri gerekli");
     }
 
     private void apply(RuleEntity rule, RuleInput input) {

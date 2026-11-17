@@ -73,10 +73,10 @@ public class TransactionService {
         if (filtersJson == null || filtersJson.isBlank()) return List.of();
         try {
             List<ColumnFilter> filters = objectMapper.readValue(filtersJson, new TypeReference<>() {});
-            if (filters.size() > 30) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "En fazla 30 kolon filtresi kullan�labilir");
+            if (filters.size() > 30) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "En fazla 30 kolon filtresi kullanılabilir");
             return filters;
         } catch (JsonProcessingException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kolon filtreleri okunamad�");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kolon filtreleri okunamadı");
         }
     }
 
@@ -84,7 +84,7 @@ public class TransactionService {
         Set<String> fields = Set.of("id", "occurredAt", "customerRef", "instrument", "counterparty", "transactionType",
             "amount", "currency", "merchantRisk", "threeDs", "riskScore", "reviewStatus", "assignedAnalyst", "paymentBlocked");
         if (filter == null || !fields.contains(filter.field()) || filter.operator() == null || filter.value() == null || filter.value().length() > 200)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ge�ersiz kolon filtresi");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Geçersiz kolon filtresi");
         Object actual = switch (filter.field()) {
             case "id" -> tx.id;
             case "occurredAt" -> tx.occurredAt;
@@ -104,11 +104,11 @@ public class TransactionService {
         };
         if (actual instanceof Number || actual instanceof java.math.BigDecimal) {
             try { return compare(new java.math.BigDecimal(actual.toString()).compareTo(new java.math.BigDecimal(filter.value())), filter.operator()); }
-            catch (NumberFormatException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say�sal filtre de�eri ge�ersiz"); }
+            catch (NumberFormatException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sayısal filtre değeri geçersiz"); }
         }
         if (actual instanceof Instant instant) {
             try { return compare(instant.compareTo(Instant.parse(filter.value())), filter.operator()); }
-            catch (RuntimeException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tarih filtresi ge�ersiz"); }
+            catch (RuntimeException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tarih filtresi geçersiz"); }
         }
         String left = String.valueOf(actual == null ? "" : actual).toLowerCase(Locale.ROOT);
         String right = filter.value().toLowerCase(Locale.ROOT);
@@ -119,7 +119,7 @@ public class TransactionService {
             case "STARTS_WITH" -> left.startsWith(right);
             case "ENDS_WITH" -> left.endsWith(right);
             case "REGEX" -> regex(actual, filter.value());
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bu alan i�in operat�r desteklenmiyor");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bu alan için operatör desteklenmiyor");
         };
     }
 
@@ -131,14 +131,14 @@ public class TransactionService {
             case "GTE" -> comparison >= 0;
             case "LT" -> comparison < 0;
             case "LTE" -> comparison <= 0;
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kar��la�t�rma operat�r� ge�ersiz");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Karşılaştırma operatörü geçersiz");
         };
     }
 
     private boolean regex(Object actual, String expression) {
         if (expression.length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Regex en fazla 120 karakter olabilir");
         try { return Pattern.compile(expression, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(String.valueOf(actual == null ? "" : actual)).find(); }
-        catch (PatternSyntaxException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Regex ifadesi ge�ersiz"); }
+        catch (PatternSyntaxException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Regex ifadesi geçersiz"); }
     }
 
     @Transactional
@@ -154,7 +154,7 @@ public class TransactionService {
             tx.assignedAnalyst = user;
             tx.reviewStatus = ReviewStatus.IN_REVIEW;
             transactions.save(tx);
-            if (firstClaim) audit(tx, user, "ASSIGNED", "��lem inceleme i�in atand�");
+            if (firstClaim) audit(tx, user, "ASSIGNED", "İşlem inceleme için atandı");
         }
         return assemble(tx, user);
     }
@@ -162,7 +162,7 @@ public class TransactionService {
     @Transactional
     public TransactionDetail comment(String id, String user, String content) {
         TransactionEntity tx = requireEditable(id, user);
-        if (content == null || content.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Yorum bo� olamaz");
+        if (content == null || content.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Yorum boş olamaz");
         CommentEntity comment = new CommentEntity();
         comment.id = UUID.randomUUID().toString();
         comment.tenantId = tenantId;
@@ -178,7 +178,7 @@ public class TransactionService {
     @Transactional
     public TransactionDetail decide(String id, String user, ReviewStatus status) {
         if (!Set.of(ReviewStatus.FRAUD, ReviewStatus.NOT_FRAUD, ReviewStatus.ON_HOLD).contains(status))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ge�ersiz karar");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Geçersiz karar");
         TransactionEntity tx = requireEditable(id, user);
         tx.reviewStatus = status;
         tx.decisionBy = user;
@@ -194,9 +194,9 @@ public class TransactionService {
     @Transactional
     public int bulkDecision(List<String> ids, String user, ReviewStatus status) {
         if (ids == null || ids.isEmpty() || ids.size() > 100)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "1-100 i�lem ID'si gerekli");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "1-100 işlem ID'si gerekli");
         if (!Set.of(ReviewStatus.FRAUD, ReviewStatus.NOT_FRAUD).contains(status))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Toplu karar yaln�z Fraud/Not Fraud olabilir");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Toplu karar yalnız Fraud/Not Fraud olabilir");
         int updated = 0;
         for (String id : ids) {
             TransactionEntity tx = require(id);
@@ -216,14 +216,14 @@ public class TransactionService {
 
     private TransactionEntity require(String id) {
         return transactions.findById(id).filter(t -> tenantId.equals(t.tenantId))
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "��lem bulunamad�"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "İşlem bulunamadı"));
     }
 
     private TransactionEntity requireEditable(String id, String user) {
-        if (!canEdit(user)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu kullan�c� salt okunur");
+        if (!canEdit(user)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu kullanıcı salt okunur");
         TransactionEntity tx = require(id);
         boolean lockedByOther = tx.lockOwner != null && tx.lockExpiresAt != null && tx.lockExpiresAt.isAfter(Instant.now()) && !tx.lockOwner.equals(user);
-        if (lockedByOther) throw new ResponseStatusException(HttpStatus.CONFLICT, "��lem ba�ka bir analist taraf�ndan inceleniyor");
+        if (lockedByOther) throw new ResponseStatusException(HttpStatus.CONFLICT, "İşlem başka bir analist tarafından inceleniyor");
         tx.lockOwner = user;
         tx.lockExpiresAt = Instant.now().plus(5, ChronoUnit.MINUTES);
         tx.assignedAnalyst = user;
