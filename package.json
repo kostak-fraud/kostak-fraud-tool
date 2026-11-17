@@ -1,0 +1,15 @@
+{
+  "name": "kostak-fraud-tool",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "node scripts/lint.mjs",
+    "check": "node --check preview/server.mjs && node --check preview/public/app.js && node --check preview/smoke-test.mjs && node --check preview/invariant-test.mjs && node --check scripts/lint.mjs && node --check scripts/run-preview-tests.mjs",
+    "test": "node scripts/run-preview-tests.mjs",
+    "ci": "npm run lint && npm run check && npm test"
+  }
+}
